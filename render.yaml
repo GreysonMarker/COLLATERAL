@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: collateral
+    runtime: node
+    plan: free
+    buildCommand: node --check render/server.mjs
+    startCommand: node render/server.mjs
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
