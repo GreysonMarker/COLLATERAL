@@ -1,14 +1,16 @@
+import {desktopVisuals,finishCharacterMaterial} from './visual-polish.js';
 import * as T from './vendor/three.module.js';
 import {createCharacterFace} from './character-face.js';
 // Complete replacement silhouettes, not accessories layered over Meridian's suit.
 // Local +Z faces forward. Every solid is baked into its existing animation joint.
 export function buildReferenceCharacter({style,rig,head,arms,legs,all,toon}){
+ const detailed=desktopVisuals();
  const id=style.id,heavy=['obsidian','gold','violet'].includes(id),armored=id==='obsidian'||id==='violet',bins=new Map(),anchors=new Map();
- const material=c=>{const m=toon(c);m.flatShading=true;m.roughness=.78;return m;};
+ const material=c=>{const m=toon(c);m.flatShading=!detailed;m.roughness=.78;if(detailed)finishCharacterMaterial(m);return m;};
  const dark=material(style.colors[0]),suit=material(style.colors[1]),trim=material(style.colors[4]),white=material(style.colors[2]),skin=material(style.colors[6]),hair=material(style.colors[7]),red=material('#c92343'),ink=material('#10131d'),eyeWhite=material('#fff9ef');
- if(armored){trim.metalness=.25;trim.roughness=.52;}
+ if(detailed){finishCharacterMaterial(skin,'skin');finishCharacterMaterial(hair,'hair');finishCharacterMaterial(trim,'metal');if(armored){finishCharacterMaterial(suit,'metal');finishCharacterMaterial(dark,'metal');}}else if(armored){trim.metalness=.25;trim.roughness=.52;}
  const glow=new T.MeshBasicMaterial({color:id==='violet'?'#de21f2':'#9cf5ff',toneMapped:false});
- const cube=new T.BoxGeometry(1,1,1),round=new T.SphereGeometry(1,8,5);
+ const cube=new T.BoxGeometry(1,1,1),round=new T.SphereGeometry(1,detailed?24:8,detailed?16:5);
  function add(parent,mat,geo,x,y,z,sx=1,sy=1,sz=1,rz=0){
   if(parent===rig&&y>1.15){const ay=y>1.55?1.7:1.3;if(!anchors.has(ay)){const a=new T.Group();a.position.y=ay;rig.add(a);anchors.set(ay,a);}parent=anchors.get(ay);y-=ay;}
   const matrix=new T.Matrix4().compose(new T.Vector3(x,y,z),new T.Quaternion().setFromAxisAngle(new T.Vector3(0,0,1),rz),new T.Vector3(sx,sy,sz));
@@ -16,13 +18,13 @@ export function buildReferenceCharacter({style,rig,head,arms,legs,all,toon}){
  }
  const box=(p,m,x,y,z,w,h,d,a=0)=>add(p,m,cube,x,y,z,w,h,d,a);
  const muscle=(p,m,x,y,z,w,h,d,a=0)=>add(p,m,round,x,y,z,w,h,d,a);
- function shape(points,depth=.06,bevel=.015){const s=new T.Shape();points.forEach(([x,y],i)=>i?s.lineTo(x,y):s.moveTo(x,y));s.closePath();const g=new T.ExtrudeGeometry(s,{depth,bevelEnabled:bevel>0,bevelSize:bevel,bevelThickness:bevel,bevelSegments:1,steps:1});g.translate(0,0,-depth/2);return g;}
+ function shape(points,depth=.06,bevel=.015){const s=new T.Shape();points.forEach(([x,y],i)=>i?s.lineTo(x,y):s.moveTo(x,y));s.closePath();const g=new T.ExtrudeGeometry(s,{depth,bevelEnabled:bevel>0,bevelSize:bevel,bevelThickness:bevel,bevelSegments:detailed?3:1,steps:1});g.translate(0,0,-depth/2);return g;}
  function plate(p,m,points,x,y,z,depth=.06,bevel=.015){const g=shape(points,depth,bevel);add(p,m,g,x,y,z);g.dispose();}
  const diamond=(p,m,x,y,z,w,h,d=.04)=>plate(p,m,[[0,h/2],[w/2,0],[0,-h/2],[-w/2,0]],x,y,z,d,.008);
  const chamfer=[[-.38,.5],[.38,.5],[.5,.32],[.5,-.32],[.32,-.5],[-.32,-.5],[-.5,-.32],[-.5,.32]];
  function panel(p,m,x,y,z,w,h,d=.05){plate(p,m,chamfer.map(([a,b])=>[a*w,b*h]),x,y,z,d,.008);}
  function stripe(p,m,a,b,w,d=.025){box(p,m,(a[0]+b[0])/2,(a[1]+b[1])/2,a[2],w,Math.hypot(a[0]-b[0],a[1]-b[1]),d,-Math.atan2(b[0]-a[0],b[1]-a[1]));}
- function cylinder(p,m,x,y,z,top,bottom,h,depth=1){const g=new T.CylinderGeometry(top,bottom,h,8);add(p,m,g,x,y,z,1,1,depth);g.dispose();}
+ function cylinder(p,m,x,y,z,top,bottom,h,depth=1){const g=new T.CylinderGeometry(top,bottom,h,detailed?24:8);add(p,m,g,x,y,z,1,1,depth);g.dispose();}
  // Full torso, pelvis and neck. The large variants have broad chest and narrow waist.
  cylinder(rig,dark,0,1.46,0,heavy?.43:.36,.26,.69,.77);
  cylinder(rig,dark,0,1.07,0,.27,.30,.21,.85);

@@ -1,3 +1,4 @@
+import {desktopVisuals,finishCharacterMaterial} from './visual-polish.js';
 import {createBattleDamage} from './battle-damage.js';
 import {defensePose} from './defense-pose.js';
 import {throwPose} from './grab-pose.js';
@@ -12,7 +13,8 @@ import {seriousPunchPose,regularPunchPose} from './punch-pose.js';
 
 // Jointed, game-native hero. Local +Z is forward; all animation pivots are anatomical joints.
 export function createHero(materialFactory) {
-  const toon=color=>materialFactory(color).clone();
+  const detailed=desktopVisuals();
+  const toon=color=>finishCharacterMaterial(materialFactory(color).clone());
   const root = new T.Group(); root.name='Meridian caped hero';
   const orientation=new T.Group();orientation.position.y=1.2;root.add(orientation);const rig=new T.Group();rig.position.y=-1.2;orientation.add(rig);rig.scale.set(.74,1,.70);
   const navy=toon('#17233e'), blue=toon('#306ac7'), ivory=toon('#e6e1cc'), red=toon('#db3e57'), gold=toon('#ffc65e');
@@ -20,21 +22,22 @@ export function createHero(materialFactory) {
   const energy=new T.MeshBasicMaterial({color:'#83ffff',toneMapped:false});
   const ink=new T.MeshBasicMaterial({color:'#101626',side:T.BackSide});
   const skin=toon('#bc896d'),hair=toon('#232039');
+  finishCharacterMaterial(skin,'skin');finishCharacterMaterial(hair,'hair');finishCharacterMaterial(gold,'metal');
   const all=[];
   function part(parent,geometry,material,x,y,z,sx=1,sy=1,sz=1,outline=true){
     const mesh=new T.Mesh(geometry,material);mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);all.push(mesh);
-    if(outline){const shell=new T.Mesh(geometry,ink);shell.scale.setScalar(1.045);mesh.add(shell)}return mesh;
+    if(outline&&!detailed){const shell=new T.Mesh(geometry,ink);shell.scale.setScalar(1.045);mesh.add(shell)}return mesh;
   }
-  const sphere=new T.SphereGeometry(1,10,7),gem=new T.IcosahedronGeometry(1,0),cube=new T.BoxGeometry(1,1,1);
+  const sphere=new T.SphereGeometry(1,detailed?24:10,detailed?16:7),gem=new T.IcosahedronGeometry(1,detailed?2:0),cube=new T.BoxGeometry(1,1,1);
   function armor(parent,m,x,y,z,sx,sy,sz){return part(parent,gem,m,x,y,z,sx,sy,sz)}
   function group(parent,x,y,z){const g=new T.Group();g.position.set(x,y,z);parent.add(g);return g}
-  function taper(parent,m,x,y,z,top,bottom,height,depth){return part(parent,new T.CylinderGeometry(top,bottom,height,12),m,x,y,z,1,1,depth)}
+  function taper(parent,m,x,y,z,top,bottom,height,depth){return part(parent,new T.CylinderGeometry(top,bottom,height,detailed?24:12),m,x,y,z,1,1,depth)}
   taper(rig,navy,0,1.43,0,.43,.27,.67,.64);
   taper(rig,blue,0,1.69,0,.48,.32,.38,.68);
   part(rig,sphere,blue,-.19,1.73,.16,.21,.20,.12);
   part(rig,sphere,blue,.19,1.73,.16,.21,.20,.12);
   for(const side of [-1,1]){const stripe=part(rig,cube,gold,side*.19,1.56,.256,.065,.39,.035,false);stripe.rotation.z=side*-.65;}
-  for(let i=0;i<3;i++)part(rig,cube,blue,0,1.24+i*.105,.20,.32-i*.027,.075,.085);
+  for(let i=0;i<3;i++)part(rig,detailed?sphere:cube,blue,0,1.24+i*.105,.20,detailed?(.32-i*.027)/2:.32-i*.027,detailed?.047:.075,detailed?.065:.085);
   taper(rig,black,0,1.08,0,.28,.30,.21,.8);
   part(rig,cube,gold,0,1.145,.225,.24,.095,.055);
   // Embroidered sunburst emblem and tailored contrast panels, not powered armor.
@@ -56,13 +59,15 @@ export function createHero(materialFactory) {
     const shoulder=group(rig,side*.40,1.81,0);shoulder.name=side<0?'leftShoulder':'rightShoulder';
     part(shoulder,sphere,blue,side*.015,-.035,0,.17,.20,.16);
     part(shoulder,sphere,red,side*.02,.07,-.04,.175,.075,.165);
-    part(shoulder,new T.CapsuleGeometry(.105,.18,3,8),navy,0,-.24,0);
+    part(shoulder,new T.CapsuleGeometry(.105,.18,detailed?6:3,detailed?16:8),navy,0,-.24,0);
+    if(detailed){part(shoulder,sphere,blue,0,-.22,.045,.115,.17,.10,false);part(shoulder,sphere,navy,0,-.24,-.045,.105,.15,.095,false);}
     const elbow=group(shoulder,0,-.43,0);elbow.name=side<0?'leftElbow':'rightElbow';
     part(elbow,sphere,black,0,0,0,.11,.11,.11);
     taper(elbow,blue,0,-.16,0,.125,.145,.29,.85);
     part(elbow,cube,gold,0,-.25,.13,.23,.06,.04);
     part(elbow,cube,red,0,-.11,.145,.07,.15,.018,false);
     part(elbow,sphere,navy,0,-.36,.01,.115,.13,.12);
+    if(detailed){for(let finger=0;finger<4;finger++)part(elbow,sphere,navy,-.075+finger*.05,-.365,.10,.027,.038,.03,false);part(elbow,sphere,navy,side*.095,-.335,.045,.043,.065,.045,false);}
     arms.push({shoulder,elbow,side});
     const hip=group(rig,side*.19,1.05,0);
     taper(hip,navy,0,-.22,0,.135,.115,.43,.90);
@@ -78,7 +83,7 @@ export function createHero(materialFactory) {
     part(ankle,cube,black,0,-.095,.075,.26,.045,.40);
     legs.push({hip,knee,ankle,side});
   }
-  const cape=createCape(root,rig,new T.MeshStandardMaterial({color:'#d43157',roughness:.93,metalness:0}));
+  const cape=createCape(root,rig,new T.MeshStandardMaterial({color:'#d43157',roughness:.93,metalness:0,bumpMap:detailed?blue.bumpMap:null,bumpScale:.016}));
   for(const side of [-1,1]){part(rig,new T.SphereGeometry(.075,10,8),gold,side*.33,1.87,.14);}
   const collar=part(rig,new T.TorusGeometry(.185,.045,6,16),red,0,1.96,0);collar.rotation.x=Math.PI/2;
   const appearance=installAppearance({root,rig,head,arms,legs,materials:{navy,blue,ivory,red,gold,black,skin,hair},part,cube,gem,all,cape,toon});

@@ -1,10 +1,11 @@
+import {desktopVisuals} from './visual-polish.js';
 import * as T from './vendor/three.module.js';
 // Bounded visual pool, independent of cutting geometry and destruction strength.
 export function createHeatFX(scene,camera){
  const root=new T.Group();root.visible=false;scene.add(root);const pixels=new Uint8Array(64*64*4);
  for(let y=0;y<64;y++)for(let x=0;x<64;x++){const r=Math.hypot((x-31.5)/31.5,(y-31.5)/31.5),i=(y*64+x)*4;pixels[i]=pixels[i+1]=pixels[i+2]=255;pixels[i+3]=Math.round(Math.max(0,1-r)**2*255);}
  const map=new T.DataTexture(pixels,64,64);map.needsUpdate=true;
- const sprite=(color)=>{const m=new T.Sprite(new T.SpriteMaterial({map,color,transparent:true,blending:T.AdditiveBlending,depthWrite:false,toneMapped:false,fog:false}));m.renderOrder=5;root.add(m);return m;};
+ const sprite=(color)=>{const m=new T.Sprite(new T.SpriteMaterial({map,color,transparent:true,blending:T.AdditiveBlending,depthWrite:false,toneMapped:false,fog:false}));if(desktopVisuals())m.material.color.multiplyScalar(2);m.renderOrder=5;root.add(m);return m;};
  const eyes=[sprite('#ff3810'),sprite('#ff3810')],streaks=[sprite('#ff9b38'),sprite('#ff9b38')],impact=sprite('#ff6b15'),impactCore=sprite('#fff6c8');
  const faceLight=new T.PointLight('#ff5427',0,7,2),hitLight=new T.PointLight('#ff8e3c',0,13,2);root.add(faceLight,hitLight);
  const ribbons=[];

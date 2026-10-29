@@ -1,3 +1,4 @@
+import {desktopVisuals} from './visual-polish.js';
 import {createHeatBudget} from './health.js';
 import {createHeatFX,heatContact} from './heat-fx.js';
 import * as T from './vendor/three.module.js';
@@ -12,16 +13,17 @@ export function heatReticleAim(camera,origin,reticle=HEAT_RETICLE){
 }
 export function createHeatVision(scene,{camera,hero,destruction,cityLife,groundHeight,collisionWorld=null,combat=null,actorId='player',targetPoint=()=>null,inCombat=()=>true}){
  const reticle=HEAT_RETICLE.clone();
+ const detailed=desktopVisuals();
  const effects=createHeatFX(scene,camera);
- const root=new T.Group();root.visible=false;scene.add(root);const geo=new T.CylinderGeometry(1,1,1,7),up=new T.Vector3(0,1,0),beams=[];
- for(let eye=0;eye<2;eye++)for(const glow of [true,false]){const mesh=new T.Mesh(geo,new T.MeshBasicMaterial({color:glow?'#ff541a':'#fff8da',toneMapped:false,fog:false,transparent:glow,opacity:glow?.65:1,blending:glow?T.AdditiveBlending:T.NormalBlending,depthWrite:!glow}));mesh.frustumCulled=false;mesh.renderOrder=glow?3:2;root.add(mesh);beams.push({mesh,eye,glow});}
+ const root=new T.Group();root.visible=false;scene.add(root);const geo=new T.CylinderGeometry(1,1,1,detailed?20:7),up=new T.Vector3(0,1,0),beams=[];
+ for(let eye=0;eye<2;eye++)for(const glow of [true,false]){const mesh=new T.Mesh(geo,new T.MeshBasicMaterial({color:glow?'#ff541a':'#fff8da',toneMapped:false,fog:false,transparent:glow,opacity:glow?.65:1,blending:glow?T.AdditiveBlending:T.NormalBlending,depthWrite:!glow}));mesh.frustumCulled=false;mesh.renderOrder=glow?3:2;if(detailed){if(!glow)mesh.material.color.multiplyScalar(3);else{mesh.material.dispose();mesh.material=new T.ShaderMaterial({transparent:true,depthWrite:false,blending:T.AdditiveBlending,uniforms:{time:{value:0}},vertexShader:'varying vec3 n;varying vec3 eye;varying vec2 vUv;void main(){vec4 p=modelViewMatrix*vec4(position,1.);n=normalize(normalMatrix*normal);eye=-p.xyz;vUv=uv;gl_Position=projectionMatrix*p;}',fragmentShader:'varying vec3 n;varying vec3 eye;varying vec2 vUv;uniform float time;void main(){float edge=pow(abs(dot(normalize(n),normalize(eye))),1.5);float pulse=.85+.15*sin(vUv.y*140.-time*45.);gl_FragColor=vec4(vec3(3.,.16,.015)*pulse,edge*.55);}',toneMapped:false});}}root.add(mesh);beams.push({mesh,eye,glow});}
  const glowGeo=new T.SphereGeometry(.065,8,6),eyes=[-1,1].map(()=>{const m=new T.Mesh(glowGeo,new T.MeshBasicMaterial({color:'#ff3820',toneMapped:false}));root.add(m);return m;});
  const reflectedBeams=[0,1].map(()=>{const mesh=new T.Mesh(geo,new T.MeshBasicMaterial({color:'#fff8b0',toneMapped:false}));mesh.visible=false;root.add(mesh);return mesh;});
  const budget=createHeatBudget();let tick=0;
- let held=false,clock=0;const stats={range:HEAT_RANGE,cuts:0,npcPiercings:0,ticks:0};
+ let held=false,clock=0,visualTime=0;const stats={range:HEAT_RANGE,cuts:0,npcPiercings:0,ticks:0};
  function aimed(origin){const target=targetPoint();return target?{target,direction:target.clone().sub(origin).normalize()}:heatReticleAim(camera,origin,reticle);}
  function stop(){held=false;root.visible=false;clock=0;}
- function update(dt,allowed=true){const limited=inCombat(),used=budget.update(dt,held&&allowed&&limited),fired=limited?used:(held&&allowed&&budget.cooldown===0?dt:0);stats.charge=budget.charge;stats.cooldown=budget.cooldown;root.visible=fired>0;if(!root.visible){stats.contact=false;clock=0;effects.update(dt,false);stats.particles=effects.particles;return;}
+ function update(dt,allowed=true){visualTime+=dt;const limited=inCombat(),used=budget.update(dt,held&&allowed&&limited),fired=limited?used:(held&&allowed&&budget.cooldown===0?dt:0);stats.charge=budget.charge;stats.cooldown=budget.cooldown;root.visible=fired>0;if(!root.visible){stats.contact=false;clock=0;effects.update(dt,false);stats.particles=effects.particles;return;}
   const origins=hero.eyePositions(),center=origins[0].clone().add(origins[1]).multiplyScalar(.5),dir=aimed(center).direction;let reach=HEAT_RANGE;
   // A beam stops at terrain rather than drilling a road trench or cutting through the earth.
   let groundStep=0;for(let d=0;d<=HEAT_RANGE;d=Math.min(HEAT_RANGE,d+3)){const p=center.clone().addScaledVector(dir,d);if(p.y<=groundHeight(p.x,p.z)){let lo=groundStep,hi=d;for(let i=0;i<8;i++){const mid=(lo+hi)/2,q=center.clone().addScaledVector(dir,mid);if(q.y<=groundHeight(q.x,q.z))hi=mid;else lo=mid;}reach=lo;break;}if(d===HEAT_RANGE)break;groundStep=d;}
@@ -35,7 +37,7 @@ export function createHeatVision(scene,{camera,hero,destruction,cityLife,groundH
   if(reflection){const back=center.clone().sub(end),length=back.length();for(let i=0;i<2;i++){const mesh=reflectedBeams[i];mesh.visible=true;mesh.position.copy(end).lerp(center,.5);mesh.position.x+=(i?1:-1)*.045;mesh.quaternion.setFromUnitVectors(up,back.clone().normalize());mesh.scale.set(.055,length,.055);}
 
   }for(let i=0;i<2;i++)eyes[i].position.copy(origins[i]);
-  for(const {mesh,eye,glow} of beams){const start=origins[eye],delta=end.clone().sub(start);mesh.position.copy(start).lerp(end,.5);mesh.quaternion.setFromUnitVectors(up,delta.clone().normalize());mesh.scale.set(glow?.14:.047,delta.length(),glow?.14:.047);}
+  for(const {mesh,eye,glow} of beams){if(mesh.material.uniforms)mesh.material.uniforms.time.value=visualTime;const start=origins[eye],delta=end.clone().sub(start);mesh.position.copy(start).lerp(end,.5);mesh.quaternion.setFromUnitVectors(up,delta.clone().normalize());mesh.scale.set(glow?.14:.047,delta.length(),glow?.14:.047);}
   let freshContact=null;clock-=dt;if(clock<=0){clock=.10;freshContact=heatContact(collisionWorld,center,dir,reach);if(!freshContact&&reach<HEAT_RANGE-.1)freshContact=end.clone();stats.cuts+=destruction.heat(center,dir,reach);stats.cuts+=cityLife.heat(center,dir,reach);const passes=cityLife.heatPasses||[];effects.pierce(passes,dir);stats.npcPiercings+=passes.length;stats.contact=!!freshContact;if(freshContact)cityLife.frighten?.(freshContact,90);}
   effects.update(dt,true,origins,end,freshContact);stats.particles=effects.particles;
  }

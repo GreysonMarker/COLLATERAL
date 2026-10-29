@@ -1,3 +1,4 @@
+import {finishCharacterMaterial} from './visual-polish.js';
 import * as T from './vendor/three.module.js';
 // A single continuous head surface. All facial markings share one texture;
 // the nose, eye sockets and lips deform the surface, never separate solids.
@@ -36,6 +37,6 @@ export function createCharacterFace(style,toon){
   const at=(row*size+col)*4;data[at]=color[0];data[at+1]=color[1];data[at+2]=color[2];data[at+3]=255;
  }
  const map=new T.DataTexture(data,size,size,T.RGBAFormat);map.colorSpace=T.SRGBColorSpace;map.magFilter=T.LinearFilter;map.minFilter=T.LinearMipmapLinearFilter;map.generateMipmaps=true;map.needsUpdate=true;
- const material=toon('#ffffff');material.map=map;material.flatShading=false;material.roughness=.85;
+ const material=toon('#ffffff');material.map=map;material.flatShading=false;material.roughness=.85;finishCharacterMaterial(material,'skin');
  return {geometry:geo,material};
 }

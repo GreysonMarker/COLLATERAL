@@ -1,3 +1,4 @@
+import {desktopVisuals,pressureMaterial,vaporMap,finishSurface} from './visual-polish.js';
 import {createImpactVisuals} from './impact-visuals.js';
 import {prepareSupports,failedSupportLevel,blastOverloaded} from './building-supports.js';
 import {addPoly,addBox,floatAttribute} from './destruction-geometry.js';
@@ -35,11 +36,12 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
  const stats={damagedBuildings:0,removedSections:0,collapses:0,topShears:0,topBlasts:0,secondaryImpacts:0,fractures:0,structuralBodies:0,debris:0};
  let maxDebris=mobile?1536:2048,maxDust=mobile?128:192;let clock=0;
  const rubbleMaterial=new T.MeshStandardMaterial({color:0xffffff,roughness:.95,flatShading:true});
+ finishSurface(rubbleMaterial,'concrete');
  let debrisMesh=new T.InstancedMesh(new T.IcosahedronGeometry(.62,0),rubbleMaterial,maxDebris);debrisMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);debrisMesh.frustumCulled=false;debrisMesh.castShadow=false;debrisMesh.receiveShadow=true;debrisMesh.count=0;scene.add(debrisMesh);
  // One soft sprite batch, no transparent spheres or per-particle draw calls.
  const pixels=new Uint8Array(64*64*4);for(let y=0;y<64;y++)for(let x=0;x<64;x++){const dx=(x-31.5)/31.5,dy=(y-31.5)/31.5,r=Math.sqrt(dx*dx+dy*dy),grain=.83+.17*Math.sin(x*.61+Math.sin(y*.48)*2);const i=(y*64+x)*4;pixels[i]=pixels[i+1]=pixels[i+2]=255;pixels[i+3]=Math.max(0,1-r)**2*grain*255;}
  const texture=new T.DataTexture(pixels,64,64);texture.needsUpdate=true;texture.magFilter=texture.minFilter=T.LinearFilter;
- const dustMat=new T.MeshBasicMaterial({color:'#b1aaa0',map:texture,transparent:true,opacity:.52,depthWrite:false});
+ const dustMat=new T.MeshBasicMaterial({color:'#b1aaa0',map:mobile?texture:vaporMap(),transparent:true,opacity:.52,depthWrite:false});
  dustMat.onBeforeCompile=shader=>{shader.vertexShader='attribute float particleAlpha;varying float vParticleAlpha;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvParticleAlpha=particleAlpha;');shader.fragmentShader='varying float vParticleAlpha;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a*=vParticleAlpha;');};dustMat.customProgramCacheKey=()=> 'meridian-soft-dust-v1';
  const dustGeometry=new T.PlaneGeometry(1,1);let dustAlpha=new T.InstancedBufferAttribute(new Float32Array(maxDust),1);dustAlpha.setUsage(T.DynamicDrawUsage);dustGeometry.setAttribute('particleAlpha',dustAlpha);
  let dustMesh=new T.InstancedMesh(dustGeometry,dustMat,maxDust);dustMesh.frustumCulled=false;dustMesh.count=0;scene.add(dustMesh);
@@ -154,7 +156,7 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
   for(const y of [c.y-1,c.y,c.y+1]){const band=Math.floor(y/8);if(b.renderBands?.has(band))b.dirtyBands.add(band);}
   dirty.add(b);}
  function visualShockwave(point,radius,direction=new T.Vector3(0,1,0)){
-  if(rings.length>=8)return;const mesh=new T.Mesh(new T.RingGeometry(.84,1,64),new T.MeshBasicMaterial({color:'#d5efff',transparent:true,opacity:.65,side:T.DoubleSide,depthWrite:false}));mesh.position.copy(point);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),direction.clone().normalize());scene.add(mesh);rings.push({mesh,age:0,radius});
+  if(rings.length>=8)return;const mesh=new T.Mesh(new T.RingGeometry(.84,1,64),pressureMaterial('#d5efff'));mesh.position.copy(point);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),direction.clone().normalize());scene.add(mesh);rings.push({mesh,age:0,radius});
  }
  function topBlast(b,velocity,impactY=Infinity){
   const level=Math.floor(Math.min(b.bounds.min.y+b.height*.8,impactY-1.5)/CELL)*CELL;
@@ -291,7 +293,7 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
   const profile=damageProfile(speed,closing/Math.max(.001,speed),powered,(point.y-bottom)/(top-bottom));if(!profile.destructive)return null;
   if(profile.topOnly&&profile.severe&&!b.falling){impactVisuals.cut(b,new T.Vector3(b.x,bottom+(top-bottom)*.8,b.z),new T.Vector3(0,1,0),Math.max(...b.solids.map(s=>Math.hypot(s.x2-s.x1,s.z2-s.z1))),top-bottom,0,0);if(activate(b))topBlast(b,velocity,point.y);else{const v=velocity.clone(),y=point.y;contactCut(b,point,v,profile);defer(b,()=>{activate(b);topBlast(b,v,y);});burst(point,v,95,10);}velocity.multiplyScalar(profile.retention);return {pass:true};}
   if(!strike(b,point,velocity,profile))return null;
-  if(profile.fast>.5&&!profile.graze){if(rings.length<6){const ring=new T.Mesh(new T.RingGeometry(.82,1,40),new T.MeshBasicMaterial({color:'#c8e4ef',transparent:true,opacity:.4,side:T.DoubleSide,depthWrite:false}));ring.position.copy(point);ring.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),velocity.clone().normalize());scene.add(ring);rings.push({mesh:ring,age:0,radius:profile.radius});}waves.push({b,p:point.clone(),v:velocity.clone(),profile:{...profile,severe:false,radius:profile.radius*1.45,depth:profile.depth*1.3},delay:.08});}
+  if(profile.fast>.5&&!profile.graze){if(rings.length<6){const ring=new T.Mesh(new T.RingGeometry(.82,1,40),pressureMaterial('#c8e4ef'));ring.position.copy(point);ring.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),velocity.clone().normalize());scene.add(ring);rings.push({mesh:ring,age:0,radius:profile.radius});}waves.push({b,p:point.clone(),v:velocity.clone(),profile:{...profile,severe:false,radius:profile.radius*1.45,depth:profile.depth*1.3},delay:.08});}
   // Direct breakthroughs retain momentum. A graze still uses the ordinary
   // collision response, which strips inward velocity while preserving the slide.
   velocity.multiplyScalar(profile.retention);return {pass:!profile.graze};
