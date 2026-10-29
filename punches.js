@@ -1,3 +1,4 @@
+import {desktopVisuals,pressureMaterial,vaporMap,finishSurface} from './visual-polish.js';
 import {createPunchVariationPicker} from './punch-variants.js';
 import * as T from './vendor/three.module.js';
 export const PUNCHES={quick:{windup:.065,duration:.23,cooldown:.32,reach:4,width:2.2,shake:.12},normal:{windup:.30,duration:.78,cooldown:.425,reach:5,width:2.8,shake:.6},serious:{windup:1.1,duration:2,cooldown:5,reach:337.5,width:10.5,spread:12/337.5,roadReach:450,shake:1}};
@@ -22,8 +23,8 @@ export function createPunchState(onImpact){
 export function createPunches(scene,{buildings,destruction,groundDamage,cityLife,groundHeight,camera,audio=null,hero=null,combat=null,targetPoint=()=>null,onPunchThrown=()=>{},getVelocity=()=>new T.Vector3(),actorId='player'}){
  let position=new T.Vector3(),shake=0;const events=[],rings=[],stats={quick:0,normal:0,serious:0,buildingsHit:0};
  const targets=buildings.map(b=>{const box=new T.Box3();for(const s of b.solids)box.union(new T.Box3(new T.Vector3(s.x1,s.y1,s.z1),new T.Vector3(s.x2,s.y2,s.z2)));return {b,box};});
- const ringGeo=new T.RingGeometry(.88,1,48);
- function ring(origin,dir,size,reach=0){const mesh=new T.Mesh(ringGeo,new T.MeshBasicMaterial({color:'#e9f7ff',transparent:true,opacity:.7,side:T.DoubleSide,depthWrite:false}));mesh.position.copy(origin);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),dir);scene.add(mesh);rings.push({mesh,age:0,size,dir:dir.clone(),origin:origin.clone(),reach});}
+ const ringGeo=new T.RingGeometry(desktopVisuals()?.78:.88,1,desktopVisuals()?96:48);
+ function ring(origin,dir,size,reach=0){const mesh=new T.Mesh(ringGeo,pressureMaterial('#e9f7ff'));mesh.position.copy(origin);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),dir);scene.add(mesh);rings.push({mesh,age:0,size,dir:dir.clone(),origin:origin.clone(),reach});}
  let attackId=0;
  function impact(attack){onPunchThrown(attack.kind);const id='punch-'+actorId+'-'+(++attackId),hitSet=new Set();audio?.punch(attack.kind);const momentum=getVelocity().clone(),spec=PUNCHES[attack.kind],origin=position.clone().add(new T.Vector3(0,1.45*(hero?.character?.height||1),0)),dir=punchEffectDirection(attack.kind,attack.direction),horizontal=dir.clone().setY(0).normalize();if(horizontal.lengthSq()<.5)horizontal.set(0,0,1);const guard={x:position.x,z:position.z,dx:horizontal.x,dz:horizontal.z};const actorOrigin=origin.clone();origin.addScaledVector(horizontal,2.5);const locked=targetPoint();if(locked)dir.copy(locked.sub(attack.kind==='serious'?origin:actorOrigin).normalize());else if(camera&&attack.kind==='serious')dir.copy(cameraBlastAim(camera,origin,spec.reach).direction);if(attack.kind!=='serious')combat?.punch(actorOrigin,dir,attack.kind,{...spec,reach:spec.reach+2.5,momentum},actorId,id);if(attack.kind!=='serious')cityLife.punch?.(actorOrigin,dir,attack.kind,{...spec,reach:spec.reach+2.5,momentum},hitSet);stats[attack.kind]++;shake=Math.max(shake,spec.shake);ring(origin.clone().addScaledVector(dir,1.1),dir,attack.kind==='serious'?144:attack.kind==='normal'?14:3,attack.kind==='serious'?spec.reach:0);
   destruction.punchFalling?.(origin,dir,attack.kind,spec);
