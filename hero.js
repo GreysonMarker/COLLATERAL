@@ -122,7 +122,7 @@ export function createHero(materialFactory) {
   const capeForce=new T.Vector3(),capeTarget=new T.Vector3();
   const facing=new T.Quaternion(),yawQ=new T.Quaternion(),tiltQ=new T.Quaternion(),xAxis=new T.Vector3(1,0,0),yAxis=new T.Vector3(0,1,0),wind=new T.Vector3();
 let flightBlend=0,walkPhase=0,facingHeading=Math.PI,strideBlend=0,runBlend=0,briskBlend=0,hoverTravel=0,groundPoseBlend=0;const bankQ=new T.Quaternion(),zAxis=new T.Vector3(0,0,1);
-  function update(dt,time,{health=1000,flying,levitating=false,jumpCharge=0,ambientWind=null,collisionWorld=null,groundRecovery=null,recovery=0,groundMode='slow',moving,boost,vx,vy=0,vz,grounded,yaw=0,pitch=0,groundY=.47,bank=0,punch=null,heatAim=null,grab=null,held=null,defense=null}){
+  function update(dt,time,{onTitanStep=null,health=1000,flying,levitating=false,jumpCharge=0,ambientWind=null,collisionWorld=null,groundRecovery=null,recovery=0,groundMode='slow',moving,boost,vx,vy=0,vz,grounded,yaw=0,pitch=0,groundY=.47,bank=0,punch=null,heatAim=null,grab=null,held=null,defense=null}){
     head.quaternion.identity();
     if(flying||held){ragdoll.reset();groundPoseBlend=0;}
     if(savedAnimation){for(let i=0;i<ragBones.length;i++){ragBones[i].position.copy(savedAnimation[i].p);ragBones[i].quaternion.copy(savedAnimation[i].q);}savedAnimation=null;}
@@ -131,7 +131,8 @@ let flightBlend=0,walkPhase=0,facingHeading=Math.PI,strideBlend=0,runBlend=0,bri
     const speed=Math.hypot(vx,vz);strideBlend=T.MathUtils.damp(strideBlend,Math.min(1,speed/2.0),10,dt);const stride=strideBlend;flightBlend=T.MathUtils.damp(flightBlend,flying?1:0,7,dt);
     runBlend=T.MathUtils.damp(runBlend,!flying&&boost?1:0,7,dt);
     briskBlend=T.MathUtils.damp(briskBlend,!flying&&groundMode!=='slow'?1:0,7,dt);
-    walkPhase+=dt*T.MathUtils.lerp(gaitRate(speed,0)+briskBlend*.55,Math.PI*2*(1.45+Math.min(speed,12)*.045),runBlend)*Math.min(1,speed/.6);
+    const titan=appearance.style.id==='monolith',oldStep=Math.floor(walkPhase/Math.PI);
+    walkPhase+=titan?dt*Math.min(3.0,speed/4.5):dt*T.MathUtils.lerp(gaitRate(speed,0)+briskBlend*.55,Math.PI*2*(1.45+Math.min(speed,12)*.045),runBlend)*Math.min(1,speed/.6);
     const travelSpeed=Math.hypot(vx,vy,vz);const cruising=flying&&!levitating&&moving&&travelSpeed>.15;
     const hovering=flying&&!cruising;hoverTravel=T.MathUtils.damp(hoverTravel,hovering?Math.min(1,speed/8):0,6,dt);
     const heading=speed>.15?Math.atan2(vx,vz):facingHeading;facingHeading=heading;
@@ -147,6 +148,13 @@ let flightBlend=0,walkPhase=0,facingHeading=Math.PI,strideBlend=0,runBlend=0,bri
 for(const a of arms){a.elbow.rotation.y=T.MathUtils.damp(a.elbow.rotation.y,0,18,dt);a.elbow.rotation.z=T.MathUtils.damp(a.elbow.rotation.z,0,18,dt);const phase=a.side===-1?0:Math.PI,walk=T.MathUtils.lerp(walkingGait(walkPhase+phase,stride,briskBlend).arm,sprintGait(walkPhase+phase,stride).arm,runBlend);const pose=jumpCharge>0?.18+jumpCharge*.35:hovering?.02+.30*hoverTravel+Math.sin(time*1.7+phase)*.025:flying?(moving?(a.side===-1?-Math.PI:-2.85):-.12):walk;
       a.shoulder.rotation.x=T.MathUtils.damp(a.shoulder.rotation.x,pose,flying?10:28,dt);a.shoulder.rotation.z=T.MathUtils.damp(a.shoulder.rotation.z,a.side*(cruising?-.055:hovering?.18+.02*hoverTravel:.11+runBlend*.03),10,dt);a.elbow.rotation.x=T.MathUtils.damp(a.elbow.rotation.x,cruising?-.06:hovering?-.12:flying?-.3:T.MathUtils.lerp(-.20-Math.max(0,-walk)*(.35+briskBlend*.10),-.22-(.60+.32*Math.cos(walkPhase+phase+.6))-Math.max(0,-walk)*.28,runBlend),24,dt);}
     for(const l of legs){for(const bone of [l.hip,l.knee,l.ankle]){bone.rotation.y=T.MathUtils.damp(bone.rotation.y,0,18,dt);bone.rotation.z=T.MathUtils.damp(bone.rotation.z,0,18,dt);}const phase=l.side===-1?0:Math.PI,step=walkingGait(walkPhase+phase,stride,briskBlend),run=sprintGait(walkPhase+phase,stride);for(const key of ['hip','knee','ankle'])step[key]=T.MathUtils.lerp(step[key],run[key],runBlend);if(jumpCharge>0){step.hip=-.15-jumpCharge*.38;step.knee=.30+jumpCharge*.76;step.ankle=-step.hip-step.knee;}l.hip.rotation.x=T.MathUtils.damp(l.hip.rotation.x,hovering?(l.side===-1?.025+.115*hoverTravel:.055+.135*hoverTravel):flying?(moving?(l.side===-1?0:.04):(l.side===-1?.10:.25)):grounded?step.hip:-.3,30,dt);l.knee.rotation.x=T.MathUtils.damp(l.knee.rotation.x,hovering?.075+.045*hoverTravel:flying?(moving?.06:.25):grounded?step.knee:.6,30,dt);l.ankle.rotation.x=T.MathUtils.damp(l.ankle.rotation.x,hovering?.48:!flying&&grounded?step.ankle:0,30,dt);l.hip.rotation.z=l.side*.035;}
+    if(titan&&grounded&&!flying&&!held){
+      const weight=Math.min(1,speed/2),phase=walkPhase;
+      rig.position.y=-1.2-Math.abs(Math.sin(phase))*.025*weight;
+      rig.rotation.x=.035*weight;rig.rotation.z=Math.sin(phase)*.022*weight;
+      for(const l of legs){const p=phase+(l.side<0?0:Math.PI);l.hip.rotation.x=Math.cos(p)*.40*weight;l.knee.rotation.x=Math.max(0,Math.sin(p))*.48*weight;l.ankle.rotation.x=-l.hip.rotation.x-l.knee.rotation.x;l.hip.rotation.z=l.side*.055;}
+      for(const a of arms){const p=phase+(a.side<0?0:Math.PI);a.shoulder.rotation.x=-Math.cos(p)*.20*weight;a.shoulder.rotation.z=a.side*.14;a.elbow.rotation.x=-.18;}
+    }
     // Blend spring-driven body reactions over the locomotion poses.
     rig.position.y=T.MathUtils.lerp(rig.position.y,-1.2,fall.blend)-fall.landing;
     rig.rotation.x*=1-fall.blend;rig.rotation.y*=1-fall.blend;rig.rotation.z*=1-fall.blend;
@@ -304,6 +312,7 @@ for(const a of arms){a.elbow.rotation.y=T.MathUtils.damp(a.elbow.rotation.y,0,18
       for(const a of arms){const side=a.side<0?'left':'right';poseBone(a.shoulder,p[side+'Shoulder'],p[side+'Elbow'],down,w);poseBone(a.elbow,p[side+'Elbow'],p[side+'Hand'],down,w);}
       for(const l of legs){const side=l.side<0?'left':'right';poseBone(l.hip,p[side+'Hip'],p[side+'Knee'],down,w);poseBone(l.knee,p[side+'Knee'],p[side+'Foot'],down,w);l.ankle.rotation.x=T.MathUtils.lerp(l.ankle.rotation.x,.2,w);}
     }}
+    if(titan&&onTitanStep&&grounded&&!flying&&!held&&!punch&&(!groundRecovery||groundRecovery.phase==='none')&&speed>1&&Math.floor(walkPhase/Math.PI)!==oldStep){root.updateWorldMatrix(true,true);const leg=legs.find(l=>l.side===(Math.floor(walkPhase/Math.PI)%2?1:-1));onTitanStep(leg.ankle.getWorldPosition(new T.Vector3()));}
     capeForce.lerp(capeTarget,1-Math.exp(-dt*12));wind.set(vx,vy,vz);if(cape.mesh.visible)cape.update(dt,time,wind,groundY,ambientWind,thorax,capeForce);
   }
   orientation.rotation.y=Math.PI;

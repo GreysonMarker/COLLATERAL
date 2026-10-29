@@ -3,7 +3,7 @@ import {buildReferenceCharacter} from './reference-character.js';
 import * as T from './vendor/three.module.js';
 export const CHARACTERS=[
  {id:'pale-king',name:'Pale King',size:'Powerhouse · model preview',height:1.75,width:1.16,depth:1.0,concept:true,colors:['#20242b','#ded0ac','#ded0ac','#6d2035','#ded0ac','#20242b','#ded0ac','#20242b']},
- {id:'monolith',name:'Monolith',size:'Giant · model preview',height:3.5,width:.82,depth:.78,concept:true,colors:['#343b3d','#c3a779','#c3a779','#343b3d','#38d8cc','#343b3d','#c3a779','#343b3d']},
+ {id:'monolith',name:'Monolith',size:'Giant · model preview',height:14,width:.82,depth:.78,concept:true,colors:['#343b3d','#c3a779','#c3a779','#343b3d','#38d8cc','#343b3d','#c3a779','#343b3d']},
  {id:'ghostshot',name:'Ghostshot',size:'Standard · model preview',height:1,width:.80,depth:.73,concept:true,colors:['#20242b','#eeeae2','#eeeae2','#182532','#36d8ff','#20242b','#eeeae2','#20242b']},
  {id:'original',name:'Meridian',size:'Original',height:1,width:.74,depth:.70,cape:true,colors:['#17233e','#306ac7','#e6e1cc','#db3e57','#ffc65e','#151728','#bc896d','#232039']},
  {id:'obsidian',name:'Black armor',size:'Large',height:1.55,width:1.08,depth:.9,colors:['#111322','#242637','#a9afbc','#202233','#a9afbc','#11121c','#bd8663','#11111c']},
