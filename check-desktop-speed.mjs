@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {createDesktopSpeed} from './dist/desktop-speed.js';
+const s=createDesktopSpeed();
+assert.equal(s.mode(0),'normal');
+s.press('ShiftLeft',100);assert.equal(s.mode(200),'normal');s.release('ShiftLeft',230);assert.equal(s.mode(230),'slow');
+s.press('ShiftLeft',300);assert.equal(s.mode(479),'slow');assert.equal(s.mode(480),'fast');assert(s.fast(800));s.release('ShiftLeft',800);assert.equal(s.mode(800),'slow');
+s.press('ShiftRight',900);s.release('ShiftRight',1000);assert.equal(s.selected,'normal');
+s.press('ShiftLeft',1100);s.press('ShiftLeft',1250);assert.equal(s.mode(1300),'fast');
+s.press('ShiftRight',1300);s.release('ShiftLeft',1400);assert.equal(s.mode(1450),'fast');s.release('ShiftRight',1500);assert.equal(s.mode(1500),'normal');
+s.press('ShiftLeft',1600);s.cancel();s.release('ShiftLeft',1650);assert.equal(s.selected,'normal');assert(!s.fast(3000));
+s.press('ShiftLeft',3100);s.release('ShiftLeft',3150);assert.equal(s.selected,'slow');s.reset();assert.equal(s.mode(3200),'normal');
+console.log('PASS: Shift tap switches cruise; hold boosts then restores cruise; repeat, both Shift keys, blur/pause cancellation and reset cannot leave boost stuck.');

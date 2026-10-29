@@ -49,7 +49,19 @@ header{left:auto;right:calc(env(safe-area-inset-right) + 12px);top:calc(env(safe
 /* Explicit device selection precedes character selection and world allocation. */
 #device-choice{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0,#344966,#0d1523 75%);text-align:center;overflow:auto}
 #device-choice>div{width:min(640px,100%)}.device-eyebrow{letter-spacing:7px;font-size:13px;color:#e6c47d}#device-choice h1{font-size:clamp(26px,5vw,42px);margin:24px 0 12px}#device-choice p{color:#b6c5d7;line-height:1.6}.device-options{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:32px 0}.device-options button{padding:28px 16px;border:1px solid #d7ba7a70;border-radius:12px;background:#24364d;transition:background .15s,transform .15s}.device-options button:hover,.device-options button:focus-visible{background:#354e6b;outline:2px solid #e6c47d;outline-offset:3px}.device-options b{display:block;font-size:23px;color:#ffe2a8;margin-bottom:12px}.device-options span{font-size:13px;line-height:1.8;color:#d9e5f0}.device-footnote{font-size:12px}.choosing-device #loading{visibility:hidden}
-body[data-device=computer] #joystick,body[data-device=computer] #movement-actions,body[data-device=computer] #combat-controls,body[data-device=computer] #defense-controls{display:none!important}
+body[data-device=computer] #joystick,body[data-device=computer] #fast{display:none!important}
 #keyboard-guide{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);width:max-content;max-width:90%;padding:10px 16px;background:#101b29bb;border:1px solid #d4b57940;border-radius:6px;color:#d8e4ee;text-align:center;font-size:11px;line-height:1.8;pointer-events:none}
 body.in-menu #keyboard-guide,body.paused #keyboard-guide{display:none}body.mouse-captured,body.mouse-captured *{cursor:none!important}
 @media(max-width:420px){.device-options{gap:10px}.device-options button{padding:22px 10px}.device-options b{font-size:20px}}
+
+/* Desktop action cards retain cooldowns, with stable keycaps separate from status. */
+body[data-device=computer] #combat-controls{width:270px;grid-template-columns:repeat(3,1fr);bottom:124px}
+body[data-device=computer] #combat-controls button,body[data-device=computer] #defense-controls button{height:72px;gap:4px}
+body[data-device=computer] #defense-controls{bottom:72px;left:18px;width:180px;display:flex}
+body[data-device=computer] #defense-controls button{width:86px}
+body[data-device=computer] #movement-actions{width:110px;grid-template-columns:1fr;bottom:40px}
+body[data-device=computer] #movement-actions #jump{height:76px;border-radius:12px;gap:3px}
+body[data-device=computer] #jump svg{display:none}
+body[data-device=computer] kbd{display:block;flex-shrink:0;padding:3px 8px;min-width:25px;border:1px solid #d6e9fa65;border-bottom-width:2px;border-radius:4px;background:#ffffff13;font:700 11px system-ui;line-height:1.1;color:inherit;letter-spacing:.5px}
+body[data-device=computer] #keyboard-guide{bottom:8px;font-size:10px;padding:5px 10px;max-width:calc(100% - 32px)}
+body[data-device=computer] #combat-controls button:focus-visible,body[data-device=computer] #defense-controls button:focus-visible{outline:2px solid #ffe3a0}
