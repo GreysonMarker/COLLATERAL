@@ -1,6 +1,6 @@
 // Choose before allocating world effects: device mode controls both input and budgets.
 export function graphicsProfile(mobile,dpr=1){
- return {maxRatio:Math.min(dpr,mobile?1.2:1.35),minRatio:Math.min(dpr,mobile?.85:1),shadowSize:mobile?1024:2048};
+ return {maxRatio:Math.min(dpr,mobile?1.2:1.5),minRatio:Math.min(dpr,mobile?.85:1),shadowSize:mobile?1024:2048};
 }
 export function chooseDevice(){
  return new Promise(resolve=>{
