@@ -132,7 +132,7 @@ let flightBlend=0,walkPhase=0,facingHeading=Math.PI,strideBlend=0,runBlend=0,bri
     runBlend=T.MathUtils.damp(runBlend,!flying&&boost?1:0,7,dt);
     briskBlend=T.MathUtils.damp(briskBlend,!flying&&groundMode!=='slow'?1:0,7,dt);
     const titan=appearance.style.id==='monolith',oldStep=Math.floor(walkPhase/Math.PI);
-    walkPhase+=titan?dt*Math.min(3.0,speed/4.5):dt*T.MathUtils.lerp(gaitRate(speed,0)+briskBlend*.55,Math.PI*2*(1.45+Math.min(speed,12)*.045),runBlend)*Math.min(1,speed/.6);
+    walkPhase+=titan?dt*Math.min(4.5,speed/9):dt*T.MathUtils.lerp(gaitRate(speed,0)+briskBlend*.55,Math.PI*2*(1.45+Math.min(speed,12)*.045),runBlend)*Math.min(1,speed/.6);
     const travelSpeed=Math.hypot(vx,vy,vz);const cruising=flying&&!levitating&&moving&&travelSpeed>.15;
     const hovering=flying&&!cruising;hoverTravel=T.MathUtils.damp(hoverTravel,hovering?Math.min(1,speed/8):0,6,dt);
     const heading=speed>.15?Math.atan2(vx,vz):facingHeading;facingHeading=heading;
