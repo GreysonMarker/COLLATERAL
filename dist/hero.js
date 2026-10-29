@@ -127,7 +127,8 @@ let flightBlend=0,walkPhase=0,facingHeading=Math.PI,strideBlend=0,runBlend=0,bri
     if(flying||held){ragdoll.reset();groundPoseBlend=0;}
     if(savedAnimation){for(let i=0;i<ragBones.length;i++){ragBones[i].position.copy(savedAnimation[i].p);ragBones[i].quaternion.copy(savedAnimation[i].q);}savedAnimation=null;}
     battleDamage.setHealth(health);battleDamage.setSkin(appearance.style.colors[6]);
-    const fall=fallMotion.update(dt,time,{flying,grounded,vx,vy,vz,heading:facingHeading});
+    const fallScale=appearance.style.id==='monolith'?Math.sqrt(appearance.style.height):1;
+    const fall=fallMotion.update(dt,time,{flying,grounded,vx:vx/fallScale,vy:vy/fallScale,vz:vz/fallScale,heading:facingHeading});
     const speed=Math.hypot(vx,vz);strideBlend=T.MathUtils.damp(strideBlend,Math.min(1,speed/2.0),10,dt);const stride=strideBlend;flightBlend=T.MathUtils.damp(flightBlend,flying?1:0,7,dt);
     runBlend=T.MathUtils.damp(runBlend,!flying&&boost?1:0,7,dt);
     briskBlend=T.MathUtils.damp(briskBlend,!flying&&groundMode!=='slow'?1:0,7,dt);

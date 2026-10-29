@@ -372,6 +372,12 @@ function respondToContact(axis){
 
  if(titanWalking&&contact?.solid?.building){const point=player.clone().add(contact.offset);destruction.punch(contact.solid.building,point,new T.Vector3(velocity.x,0,velocity.z).normalize(),'normal');return;}
  if(!contact){if(axis==='y'){if(!fly&&vertical<0)supported=true;vertical=velocity.y=0;}else velocity[axis]=0;return;}
+ // Gravity gives v²=2gh: sqrt(height scale) preserves proportional fall distance.
+ const titanLandingScale=hero.character.id==='monolith'?Math.sqrt(hero.character.height):1;
+ const closingSpeed=Math.max(0,-(velocity.x*contact.normal.x+(fly?velocity.y:vertical)*contact.normal.y+velocity.z*contact.normal.z));
+ if(titanLandingScale>1&&!fly&&contact.normal.y>.55&&closingSpeed<14*titanLandingScale){
+  supported=true;vertical=velocity.y=0;return;
+ }
  velocity.y=fly?velocity.y:vertical;
  if(contact.solid?.kind!=='arena'){
   if(!fly&&!heroGrapple.held)health.damage(health.impact(contact,velocity));
@@ -385,7 +391,7 @@ function respondToContact(axis){
  if(broken){if(!fly){vertical=velocity.y;const bodyHit=resolveImpact(velocity.clone(),contact,hero.orientation.quaternion,{powered:false});if(bodyHit)hero.impact({...bodyHit,point:player.clone().add(contact.offset).addScaledVector(contact.normal,-.28)});}if(broken.pass)return;}
  const impact=resolveImpact(velocity,contact,hero.orientation.quaternion,{powered:fly});
  if(impact){
-  groundRecovery.impact({flying:fly,normal:contact.normal,closing:impact.closing,speed:velocity.length()});
+  groundRecovery.impact({flying:fly,normal:contact.normal,closing:impact.closing/titanLandingScale,speed:velocity.length()/titanLandingScale});
   if(!fly&&impact.closing>6){hero.impact({...impact,point:player.clone().add(contact.offset).addScaledVector(contact.normal,-.28)});if(!fly){impactCarry=1.4;impactNormal.copy(contact.normal);impactSkid=2.5;}}
   if(!fly&&contact.normal.y>.55&&impact.rebound<1.8){supported=true;velocity.y=0;}
  }
