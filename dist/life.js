@@ -289,5 +289,14 @@ export function createCityLife(scene,material,mobile,world,{onThrowImpact=null,o
    for(const [attribute,stride] of [[b.mesh.instanceMatrix,16],[b.mesh.instanceColor,3]]){if(!attribute)continue;attribute.clearUpdateRanges();if(b.n){attribute.addUpdateRange(0,b.n*stride);attribute.needsUpdate=true;}}
   }
  }
- return {update,shock,punch,heat,frighten,acquireGrab,positionGrab,releaseGrab,get heatPoint(){return heatPoint;},get heatPasses(){return heatPasses;},get stats(){return {...reactionStats,...deaths.stats,...fragments.stats,dead:deaths.stats.dead+vanished,vanished,injured,activeParticles:particles.length,panicked:nearby.filter(p=>!p.cut&&p.fear).length,population,trafficCount:cars.length,visiblePeople,visibleCars}}};
+ function crushVehicles(position,offsets,radius,emit){
+  const p=new T.Vector3(),hit=new Set();
+  for(const o of offsets){p.addVectors(position,o);for(const solid of world.nearby(p.x,p.z,radius,p.y,true)){
+   const car=solid.actor;if(solid.kind!=='vehicle'||!car||!cars.includes(car)||car.held||car.cut||!world.sphereSolid(p,radius,solid))continue;
+   car.cut=true;car.current=0;hit.add(car);emit?.(new T.Vector3(solid.x,solid.y2,solid.z));
+  }}
+  for(const list of world.dynamic.values())for(const solid of list)if(hit.has(solid.actor))solid.disabled=true;
+  return hit.size;
+ }
+ return {crushVehicles,update,shock,punch,heat,frighten,acquireGrab,positionGrab,releaseGrab,get heatPoint(){return heatPoint;},get heatPasses(){return heatPasses;},get stats(){return {...reactionStats,...deaths.stats,...fragments.stats,dead:deaths.stats.dead+vanished,vanished,injured,activeParticles:particles.length,panicked:nearby.filter(p=>!p.cut&&p.fear).length,population,trafficCount:cars.length,visiblePeople,visibleCars}}};
 }

@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import * as T from './dist/vendor/three.module.js';
+import {createStreetProps} from './dist/street-props.js';
+import {CollisionWorld} from './dist/collision.js';
+const props=createStreetProps();
+const positions=[0,0,0,0,8,0,1,0,0, 60,0,0,60,8,0,61,0,0];
+const b={p:positions,geometry:new T.BufferGeometry()};b.geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));
+const pole=props.add(b,0,3),far=props.add(b,3,6);
+const collider={x1:0,x2:1,y1:0,y2:8,z1:-.1,z2:.1};pole.solids.push(collider);
+const world=new CollisionWorld([collider],()=>0);world.bodyRadius=8;
+const p=new T.Vector3(-9,0,0),offsets=[new T.Vector3(0,8,0)];
+let emissions=0;assert.equal(props.crush(p,offsets,10,world,()=>emissions++),1);
+assert(collider.disabled);assert(pole.broken);assert(!far.broken);assert.equal(emissions,1);
+assert(world.moveAxis(p,'x',4,offsets)===false);
+assert.deepEqual([...b.geometry.attributes.position.array.slice(9)],positions.slice(9));
+assert.equal(props.crush(p,offsets,10,world),0);
+console.log('Street prop crushing clears collision, emits once and preserves adjacent batched geometry.');
