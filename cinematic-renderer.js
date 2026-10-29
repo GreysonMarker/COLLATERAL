@@ -2,7 +2,7 @@ import * as T from './vendor/three.module.js';
 // HDR scene plus quarter-resolution bloom: bright energy glows without washing out the city.
 export function createCinematicRenderer(renderer,enabled){
  if(!enabled||!renderer.extensions.has('EXT_color_buffer_float'))return {render:(s,c)=>renderer.render(s,c),dispose(){}};
- const target=new T.WebGLRenderTarget(1,1,{type:T.HalfFloatType,depthBuffer:true});target.samples=Math.min(4,renderer.capabilities.maxSamples);
+ const target=new T.WebGLRenderTarget(1,1,{type:T.HalfFloatType,depthBuffer:true});target.samples=0;
  const a=new T.WebGLRenderTarget(1,1,{type:T.HalfFloatType,depthBuffer:false}),b=a.clone();
  const scene=new T.Scene(),camera=new T.OrthographicCamera(-1,1,1,-1,0,1),quad=new T.Mesh(new T.PlaneGeometry(2,2));quad.frustumCulled=false;scene.add(quad);
  const vertexShader='varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}';
