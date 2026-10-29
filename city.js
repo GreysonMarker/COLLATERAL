@@ -1,3 +1,4 @@
+import {createStreetProps} from './street-props.js';
 import {titanLocomotionSafe} from './titan-physics.js';
 import {setVisualProfile,finishSurface} from './visual-polish.js';
 import {createCinematicRenderer} from './cinematic-renderer.js';
@@ -102,9 +103,10 @@ const coralAccent=new T.MeshStandardMaterial({color:'#e35c61',roughness:.5}),cya
 let tallestBuilding=0;
 const buildings=[];
 for(const [material,kind] of [[concrete,'concrete'],[roofmat,'concrete'],[roadmat,'asphalt'],[pavement,'concrete'],[curbmat,'concrete'],[grassmat,'grass'],[bark,'bark']])finishSurface(material,kind);
+const streetProps=createStreetProps();
 let batchRegion='global';const renderDistricts=[],districtLods=new Map();const batches=new Map(),colliders=[],unit=new T.BoxGeometry(1,1,1).toNonIndexed();
-function addGeometry(geo,m,x,y,z,sx=1,sy=1,sz=1,rot=0,uvx=1,uvy=1){if(!geo.boundingBox)geo.computeBoundingBox();tallestBuilding=Math.max(tallestBuilding,y+geo.boundingBox.max.y*sy);const key=batchRegion+':'+m.id;let b=batches.get(key);if(!b){b={m,region:batchRegion,p:[],n:[],uv:[]};batches.set(key,b)}const p=geo.attributes.position,n=geo.attributes.normal,uv=geo.attributes.uv,c=Math.cos(rot),s=Math.sin(rot);for(let i=0;i<p.count;i++){let px=p.getX(i)*sx,pz=p.getZ(i)*sz;b.p.push(x+px*c+pz*s,y+p.getY(i)*sy,z-px*s+pz*c);let nx=n.getX(i)/sx,ny=n.getY(i)/sy,nz=n.getZ(i)/sz,l=Math.hypot(nx,ny,nz);b.n.push((nx*c+nz*s)/l,ny/l,(-nx*s+nz*c)/l);b.uv.push((uv?uv.getX(i):0)*uvx,(uv?uv.getY(i):0)*uvy)}}
-function box(x,y,z,w,h,d,m,collision=false){addGeometry(unit,m,x,y,z,w,h,d,0,Math.max(w,d)/4,h/4);if(collision||([roofmat,concrete,white,darkmetal,greenAccent,bark].includes(m)&&h>.18&&w>1&&d>1))colliders.push({x1:x-w/2,x2:x+w/2,z1:z-d/2,z2:z+d/2,y1:y-h/2,y2:y+h/2});}
+function addGeometry(geo,m,x,y,z,sx=1,sy=1,sz=1,rot=0,uvx=1,uvy=1){if(!geo.boundingBox)geo.computeBoundingBox();tallestBuilding=Math.max(tallestBuilding,y+geo.boundingBox.max.y*sy);const key=batchRegion+':'+m.id;let b=batches.get(key);if(!b){b={m,region:batchRegion,p:[],n:[],uv:[]};batches.set(key,b)}const start=b.p.length/3;const p=geo.attributes.position,n=geo.attributes.normal,uv=geo.attributes.uv,c=Math.cos(rot),s=Math.sin(rot);for(let i=0;i<p.count;i++){let px=p.getX(i)*sx,pz=p.getZ(i)*sz;b.p.push(x+px*c+pz*s,y+p.getY(i)*sy,z-px*s+pz*c);let nx=n.getX(i)/sx,ny=n.getY(i)/sy,nz=n.getZ(i)/sz,l=Math.hypot(nx,ny,nz);b.n.push((nx*c+nz*s)/l,ny/l,(-nx*s+nz*c)/l);b.uv.push((uv?uv.getX(i):0)*uvx,(uv?uv.getY(i):0)*uvy)}if(!batchRegion.endsWith(':buildings')&&Math.max(sx,sy,sz)<32&&y+geo.boundingBox.max.y*sy>1.25)return streetProps.add(b,start,b.p.length/3);}
+function box(x,y,z,w,h,d,m,collision=false){const prop=addGeometry(unit,m,x,y,z,w,h,d,0,Math.max(w,d)/4,h/4);if(collision||([roofmat,concrete,white,darkmetal,greenAccent,bark].includes(m)&&h>.18&&w>1&&d>1)){const solid={x1:x-w/2,x2:x+w/2,z1:z-d/2,z2:z+d/2,y1:y-h/2,y2:y+h/2};colliders.push(solid);prop?.solids.push(solid);}}
 // Facade faces use their actual width, preserving human-scale windows on every elevation.
 function buildingBox(x,bottom,z,w,h,d,m){const top=bottom+h;const corners=[[[w/2,0,-d/2],[w/2,0,d/2],[w/2,h,d/2],[w/2,h,-d/2]],[[-w/2,0,d/2],[-w/2,0,-d/2],[-w/2,h,-d/2],[-w/2,h,d/2]],[[w/2,0,d/2],[-w/2,0,d/2],[-w/2,h,d/2],[w/2,h,d/2]],[[-w/2,0,-d/2],[w/2,0,-d/2],[w/2,h,-d/2],[-w/2,h,-d/2]]];const norms=[[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]];const key=batchRegion+':'+m.id;let b=batches.get(key);if(!b){b={m,region:batchRegion,p:[],n:[],uv:[]};batches.set(key,b)}corners.forEach((cs,f)=>{const u=(f<2?d:w)/4.2,v=h/4.2;const uv=[[0,0],[u,0],[u,v],[0,v]];for(const i of [0,2,1,0,3,2]){b.p.push(x+cs[i][0],bottom+cs[i][1],z+cs[i][2]);b.n.push(...norms[f]);b.uv.push(...uv[i])}});box(x,top-.3,z,w,.6,d,roofmat);colliders.push({x1:x-w/2,x2:x+w/2,z1:z-d/2,z2:z+d/2,y1:bottom,y2:top});return top;}
 const treeSpecs=[];
@@ -367,7 +369,11 @@ collisionWorld.ground=hero.character.id==='monolith'?groundDamage.titanField.hei
 collisionWorld.bodyRadius=.28*hero.character.height*hero.character.width/.74;
 let offsets=collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74);
 // Include the next frame's travel so no trunk or branch can stop the sweep.
-if(titanWalking)forest.crushBody(player,offsets,collisionWorld.bodyRadius+Math.hypot(velocity.x,velocity.z)*dt+.1,collisionWorld);
+if(titanWalking){const crushRadius=collisionWorld.bodyRadius+Math.hypot(velocity.x,velocity.z)*dt+.1;
+ forest.crushBody(player,offsets,crushRadius,collisionWorld);
+ streetProps.crush(player,offsets,crushRadius,collisionWorld,p=>destruction.burst(p,new T.Vector3(velocity.x*.15,5,velocity.z*.15),8,1.5));
+ cityLife.crushVehicles(player,offsets,crushRadius,p=>destruction.burst(p,new T.Vector3(velocity.x*.2,6,velocity.z*.2),16,2));
+}
 function clearBodySpace(){
  const seen=new Set(),up=new T.Vector3(0,1,0);
  for(const o of offsets){const p=player.clone().add(o);for(const solid of collisionWorld.nearby(p.x,p.z,collisionWorld.bodyRadius,p.y,true)){
