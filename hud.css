@@ -45,3 +45,11 @@ header{left:auto;right:calc(env(safe-area-inset-right) + 12px);top:calc(env(safe
 .display-controls{margin:12px 0;padding:12px;border:1px solid #ffffff25;border-radius:8px}
 #helpPanel .display-controls p{font-size:12px;line-height:1.5;margin-bottom:0;color:#bbccda}
 #display-notice{position:fixed;z-index:60;top:64px;right:12px;max-width:min(320px,calc(100vw - 24px));padding:12px 16px;background:#14243af5;border:1px solid #d6b87985;border-radius:8px;color:#fff;font:13px/1.5 system-ui;pointer-events:none}
+
+/* Explicit device selection precedes character selection and world allocation. */
+#device-choice{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0,#344966,#0d1523 75%);text-align:center;overflow:auto}
+#device-choice>div{width:min(640px,100%)}.device-eyebrow{letter-spacing:7px;font-size:13px;color:#e6c47d}#device-choice h1{font-size:clamp(26px,5vw,42px);margin:24px 0 12px}#device-choice p{color:#b6c5d7;line-height:1.6}.device-options{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:32px 0}.device-options button{padding:28px 16px;border:1px solid #d7ba7a70;border-radius:12px;background:#24364d;transition:background .15s,transform .15s}.device-options button:hover,.device-options button:focus-visible{background:#354e6b;outline:2px solid #e6c47d;outline-offset:3px}.device-options b{display:block;font-size:23px;color:#ffe2a8;margin-bottom:12px}.device-options span{font-size:13px;line-height:1.8;color:#d9e5f0}.device-footnote{font-size:12px}.choosing-device #loading{visibility:hidden}
+body[data-device=computer] #joystick,body[data-device=computer] #movement-actions,body[data-device=computer] #combat-controls,body[data-device=computer] #defense-controls{display:none!important}
+#keyboard-guide{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);width:max-content;max-width:90%;padding:10px 16px;background:#101b29bb;border:1px solid #d4b57940;border-radius:6px;color:#d8e4ee;text-align:center;font-size:11px;line-height:1.8;pointer-events:none}
+body.in-menu #keyboard-guide,body.paused #keyboard-guide{display:none}body.mouse-captured,body.mouse-captured *{cursor:none!important}
+@media(max-width:420px){.device-options{gap:10px}.device-options button{padding:22px 10px}.device-options b{font-size:20px}}
