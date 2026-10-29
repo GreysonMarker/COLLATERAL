@@ -11,6 +11,28 @@ export function buildNewCharacter({style,rig,head,arms,legs,all,toon}){
  const lump=(p,m,x,y,z,w,h,d)=>add(p,m,gem,x,y,z,w,h,d);
  function plate(p,m,pts,z,depth=.06){const s=new T.Shape();pts.forEach(([x,y],i)=>i?s.lineTo(x,y):s.moveTo(x,y));s.closePath();const g=new T.ExtrudeGeometry(s,{depth,bevelEnabled:true,bevelSize:.008,bevelThickness:.006,bevelSegments:2});g.translate(0,0,z-depth/2);add(p,m,g,0,0,0,1,1,1);g.dispose();}
  function spike(p,m,a,c,r){const av=new T.Vector3(...a),cv=new T.Vector3(...c),g=new T.ConeGeometry(r,av.distanceTo(cv),5);g.applyQuaternion(new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),cv.clone().sub(av).normalize()));g.translate(...av.add(cv).multiplyScalar(.5).toArray());add(p,m,g,0,0,0,1,1,1);g.dispose();}
+ // Ring lofts shape a continuous mask shell and a genuinely hollow hood.
+ function loft(p,m,rings,segments=24){const pos=[],uv=[],idx=[];for(let j=0;j<rings.length;j++){const [cx,cy,z,rx,ry]=rings[j];for(let i=0;i<=segments;i++){const a=i/segments*Math.PI*2;pos.push(cx+Math.sin(a)*rx,cy+Math.cos(a)*ry,z);uv.push(i/segments,j/(rings.length-1));}}for(let j=0;j<rings.length-1;j++)for(let i=0;i<segments;i++){const a=j*(segments+1)+i;idx.push(a,a+1,a+segments+1,a+1,a+segments+2,a+segments+1);}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();add(p,m,g,0,0,0,1,1,1);g.dispose();}
+ function boneMask(){
+ // One wrapping volume from the back of the skull to the tapered facial ridge.
+ loft(head,shell,[[0,.035,-.18,.01,.01],[0,.035,-.13,.16,.21],[0,.035,-.04,.205,.25],[0,.025,.10,.19,.245],[0,-.005,.19,.145,.21],[0,-.045,.225,.065,.17],[0,-.055,.23,.002,.15]],20);
+ for(const sign of [-1,1]){
+ const curve=new T.CatmullRomCurve3([[sign*.135,.20,-.015],[sign*.22,.26,-.035],[sign*.31,.285,-.08],[sign*.37,.35,-.10]].map(v=>new T.Vector3(...v)));
+ const g=new T.TubeGeometry(curve,16,.072,10,false),positions=g.attributes.position;
+ // Taper from a broad root buried in the crown into a single swept point.
+ for(let j=0;j<=16;j++){const center=curve.getPointAt(j/16),scale=Math.pow(1-j/16,.75);for(let i=0;i<=10;i++){const k=j*11+i;const v=new T.Vector3().fromBufferAttribute(positions,k).sub(center).multiplyScalar(scale).add(center);positions.setXYZ(k,v.x,v.y,v.z);}}g.computeVertexNormals();add(head,shell,g,0,0,0,1,1,1);g.dispose();
+ plate(head,dark,[[sign*.035,.08],[sign*.155,.12],[sign*.13,.045],[sign*.055,.025]],.203,.008);
+ }
+ }
+ function hoodShell(){
+ // Outer fabric sweeps around the back and projects beyond the inset mask.
+ const outer=shell.clone();outer.side=T.DoubleSide;
+ loft(head,outer,[[0,.045,-.25,.01,.01],[0,.055,-.21,.19,.24],[0,.055,-.08,.275,.32],[0,.055,.12,.28,.32],[0,.055,.29,.255,.30],[0,.055,.32,.235,.28]],24);
+ const lining=dark.clone();lining.side=T.DoubleSide;
+ loft(head,lining,[[0,.055,.317,.233,.278],[0,.045,.20,.215,.26],[0,.04,.06,.19,.235]],24);
+ // Thick pale opening edge, distinct from the dark inner fabric.
+ loft(head,outer,[[0,.055,.32,.235,.28],[0,.055,.326,.221,.267]],24);
+ }
  const thick=pale?.25:stone?.175:.16;
  lump(rig,dark,0,1.49,0,.35,.48,.24);lump(rig,dark,0,1.06,0,.30,.19,.24);
  for(const s of [-1,1]){lump(rig,shell,s*.18,1.72,.11,thick,.23,.21);for(let i=0;i<3;i++)lump(rig,pale||stone?shell:dark,s*.095,1.46-i*.115,.18,.12,.075,.09);}
@@ -23,10 +45,7 @@ export function buildNewCharacter({style,rig,head,arms,legs,all,toon}){
  }
  for(const l of legs){lump(l.hip,stone?shell:dark,0,-.22,0,stone?.13:.17,.27,.15);lump(l.knee,shell,0,-.025,.08,.14,.13,.13);lump(l.knee,stone?shell:dark,0,-.25,0,.13,.23,.13);b(l.ankle,dark,0,-.025,.07,.29,.19,.40);lump(l.ankle,shell,0,.015,.16,.17,.12,.23);if(!pale)b(l.knee,stone?accent:shell,0,-.25,.12,.20,.29,.08);if(!pale&&!stone)b(l.knee,glow,0,-.23,.169,.035,.13,.012);}
  if(pale){
- lump(head,shell,0,.035,0,.23,.27,.20);
- plate(head,shell,[[-.17,.13],[.17,.13],[.12,-.14],[0,-.23],[-.12,-.14]],.20,.10);
- for(const s of [-1,1]){b(head,dark,s*.09,.065,.254,.115,.045,.022,s*-.25);spike(head,shell,[s*.15,.19,0],[s*.29,.38,-.03],.09);spike(head,shell,[s*.27,.34,-.03],[s*.36,.40,-.06],.045);}
- b(head,dark,0,-.12,.258,.025,.12,.012);
+ boneMask();
  b(rig,accent,.25,1.65,.31,.15,.60,.06,-.25);
  plate(rig,accent,[[-.25,1.15],[.05,1.10],[.10,.51],[-.05,.60],[-.13,.48]],.28);
  plate(rig,accent,[[.06,1.13],[.28,1.12],[.38,.62],[.24,.66],[.21,.52]],.25);
@@ -40,10 +59,10 @@ export function buildNewCharacter({style,rig,head,arms,legs,all,toon}){
  for(const a of arms)b(a.elbow,accent,0,-.25,0,.32,.09,.35);
  }else{
  // White hood enclosing a separate faceless mask, open jacket and split tails.
- lump(head,dark,0,.025,0,.22,.26,.20);
- plate(head,shell,[[-.26,-.17],[-.26,.19],[0,.37],[.26,.19],[.26,-.17],[.17,-.10],[.17,.16],[0,.25],[-.17,.16],[-.17,-.10]],.08,.25);
- plate(head,shell,[[-.155,.17],[.155,.17],[.13,-.12],[0,-.22],[-.13,-.12]],.23,.055);
- for(const s of [-1,1]){b(head,glow,s*.075,.055,.265,.085,.023,.012,s*.18);plate(rig,shell,[[s*.09,1.91],[s*.37,1.84],[s*.32,1.17],[s*.12,1.12],[s*.17,1.55]],.29,.07);b(rig,dark,s*.105,1.63,.34,.025,.48,.025,s*-.14);b(rig,shell,s*.29,1.55,-.20,.13,.63,.10);b(rig,dark,s*.28,1.03,.07,.14,.20,.25);}
+ lump(head,dark,0,.025,-.04,.18,.23,.16);
+ hoodShell();
+ plate(head,shell,[[-.14,.17],[.14,.17],[.12,-.12],[0,-.20],[-.12,-.12]],.15,.035);
+ for(const s of [-1,1]){b(head,glow,s*.075,.055,.177,.085,.023,.012,s*.18);plate(rig,shell,[[s*.09,1.91],[s*.37,1.84],[s*.32,1.17],[s*.12,1.12],[s*.17,1.55]],.29,.07);b(rig,dark,s*.105,1.63,.34,.025,.48,.025,s*-.14);b(rig,shell,s*.29,1.55,-.20,.13,.63,.10);b(rig,dark,s*.28,1.03,.07,.14,.20,.25);}
  b(rig,shell,0,1.60,-.25,.58,.62,.06);
  plate(rig,shell,[[-.30,1.20],[-.04,1.20],[-.06,.84],[-.33,.95]],-.25);
  plate(rig,shell,[[.04,1.20],[.30,1.20],[.33,.95],[.06,.84]],-.25);
@@ -78,9 +97,6 @@ export function buildNewCharacter({style,rig,head,arms,legs,all,toon}){
  // Layered bone cuirass, serrated shoulder shells and swept curved horns.
  for(const sign of [-1,1]){
  for(let j=0;j<3;j++)plate(rig,shell,[[sign*.015,1.59-j*.11],[sign*.19,1.61-j*.11],[sign*.24,1.53-j*.11],[sign*.12,1.48-j*.11],[sign*.02,1.50-j*.11]],.285-j*.012,.06);
- tube(head,shell,[[sign*.14,.20,-.02],[sign*.22,.28,-.05],[sign*.33,.30,-.11],[sign*.39,.36,-.13]],.055);
- plate(head,edge,[[sign*.03,.10],[sign*.16,.13],[sign*.19,.02],[sign*.12,-.13],[sign*.055,-.07]],.255,.015);
- plate(head,shell,[[0,.20],[sign*.08,.10],[sign*.045,-.17],[0,-.23]],.28,.025);
  for(const a of arms.filter(a=>a.side===sign)){for(let j=0;j<3;j++){lump(a.shoulder,shell,sign*(.03+j*.035),.045-j*.065,-.025,.255,.12,.25);spike(a.shoulder,shell,[sign*.12,.10-j*.065,-.14],[sign*(.25+j*.035),.24-j*.07,-.20],.07);}plate(a.elbow,shell,[[-.14,-.03],[.03,.015],[.17,-.12],[.12,-.31],[0,-.36],[-.12,-.27]],.17,.08);tube(a.elbow,edge,[[0,-.02,.22],[.04,-.16,.25],[0,-.31,.22]],.012);}
  }
  // Sash follows shoulder over the back, layered waist wraps and long torn tails.
@@ -112,8 +128,6 @@ export function buildNewCharacter({style,rig,head,arms,legs,all,toon}){
  for(const sign of [-1,1])for(let j=0;j<3;j++)tube(rig,edge,[[sign*.06,1.82-j*.15,.30],[sign*.13,1.79-j*.15,.30],[sign*.16,1.73-j*.15,.28]],.0035);
  }else{
  // Curved hood crown and closed back, dark inner lining and stitched white rim.
- const hood=new T.SphereGeometry(1,20,14,0,Math.PI*2,0,Math.PI*.62);add(head,shell,hood,0,.11,-.075,.285,.30,.245);hood.dispose();
- tube(head,edge,[[-.25,-.13,.15],[-.26,.15,.19],[0,.365,.09],[.26,.15,.19],[.25,-.13,.15]],.012);
  for(const sign of [-1,1]){
  cloth(rig,shell,[[sign*.27,1.88,.25,.20],[sign*.27,1.65,.31,.19],[sign*.25,1.42,.30,.20],[sign*.24,1.19,.29,.24]],.20);
  tube(rig,edge,[[sign*.34,1.85,.29],[sign*.31,1.60,.34],[sign*.33,1.22,.32]],.009);
