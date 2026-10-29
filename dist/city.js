@@ -374,6 +374,13 @@ function respondToContact(axis){
  if(!contact){if(axis==='y'){if(!fly&&vertical<0)supported=true;vertical=velocity.y=0;}else velocity[axis]=0;return;}
  // Gravity gives v²=2gh: sqrt(height scale) preserves proportional fall distance.
  const titanLandingScale=hero.character.id==='monolith'?Math.sqrt(hero.character.height):1;
+ // Small terrain lips should slide against a giant, never initiate a ragdoll.
+ if(titanLandingScale>1&&!fly&&!contact.solid&&Math.abs(vertical)<14*titanLandingScale){
+  if(axis==='y'||contact.normal.y>.55){supported=true;vertical=velocity.y=0;}
+  else velocity[axis]=0;
+  return;
+ }
+
  const closingSpeed=Math.max(0,-(velocity.x*contact.normal.x+(fly?velocity.y:vertical)*contact.normal.y+velocity.z*contact.normal.z));
  if(titanLandingScale>1&&!fly&&contact.normal.y>.55&&closingSpeed<14*titanLandingScale){
   supported=true;vertical=velocity.y=0;return;
@@ -398,11 +405,11 @@ function respondToContact(axis){
  if(!fly)vertical=velocity.y;
 }
 for(let i=0;i<steps;i++){
- for(const axis of ['x','z']){const before=player.clone();const hit=collisionWorld.moveAxis(player,axis,velocity[axis]*dt/steps,offsets);if(hit){let stepped=false;if(!fly&&grounded){const trial=before.clone();trial[axis]+=velocity[axis]*dt/steps;const sign=Math.sign(velocity[axis]);const support=floorAt(trial.x+(axis==='x'?sign*.28:0),trial.z+(axis==='z'?sign*.28:0),before.y+.50);if(support>before.y+.005&&support<=before.y+.50){trial.y=support;if(!collisionWorld.bodyHit(trial,offsets)){player.copy(trial);stepped=true}}}if(!stepped)respondToContact(axis);}}
+ for(const axis of ['x','z']){const before=player.clone();const hit=collisionWorld.moveAxis(player,axis,velocity[axis]*dt/steps,offsets);if(hit){let stepped=false;if(!fly&&grounded){const trial=before.clone();trial[axis]+=velocity[axis]*dt/steps;const sign=Math.sign(velocity[axis]);const support=floorAt(trial.x+(axis==='x'?sign*.28:0),trial.z+(axis==='z'?sign*.28:0),before.y+(hero.character.id==='monolith'?hero.character.height*.5:.50));if(support>before.y+.005&&support<=before.y+(hero.character.id==='monolith'?hero.character.height*.5:.50)){trial.y=support;if(!collisionWorld.bodyHit(trial,offsets)){player.copy(trial);stepped=true}}}if(!stepped)respondToContact(axis);}}
  const hitY=collisionWorld.moveAxis(player,'y',(fly?velocity.y:vertical)*dt/steps,offsets);if(hitY)respondToContact('y');
  collisionWorld.confine(player,velocity,collisionWorld.bodyRadius,offsets);
 }
-groundDamage.slide(new T.Vector3(player.x,groundHeight(player.x,player.z),player.z),velocity,(supported||groundDamage.recentlyTouched)&&player.y<groundHeight(player.x,player.z)+2);
+if(hero.character.id!=='monolith')groundDamage.slide(new T.Vector3(player.x,groundHeight(player.x,player.z),player.z),velocity,(supported||groundDamage.recentlyTouched)&&player.y<groundHeight(player.x,player.z)+2);
 if(!fly&&!heroGrapple.held&&!supported&&restingOnSolid(collisionWorld,player,offsets,vertical)){supported=true;vertical=velocity.y=0;}
 if(!fly)grounded=supported;
 if(airRecovery.update(dt,{airborne:!grounded,held:heroGrapple.held})){
