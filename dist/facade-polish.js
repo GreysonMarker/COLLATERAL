@@ -12,6 +12,6 @@ export function polishFacade(material,style){
  material.map.image=c;material.map.needsUpdate=true;
  function map(draw){const c=document.createElement('canvas');c.width=c.height=n;const q=c.getContext('2d');draw(q);const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=material.map.anisotropy;return t;}
  material.roughness=1;material.roughnessMap=map(q=>{q.fillStyle=glass?'#8b8b8b':'#e4e4e4';q.fillRect(0,0,n,n);q.fillStyle=glass?'#303030':'#555555';q.fillRect(pad,y,w,h);q.fillStyle='#a0a0a0';q.fillRect(n/2-4,y,8,h);q.fillRect(pad,n/2,w,6);});
- material.bumpMap=map(q=>{q.fillStyle='#aaaaaa';q.fillRect(0,0,n,n);q.fillStyle='#606060';q.fillRect(pad,y,w,h);q.fillStyle='#bcbcbc';q.fillRect(n/2-4,y,8,h);q.fillRect(pad,n/2,w,6);});material.bumpScale=glass?.035:.075;
+ material.bumpMap=null;material.bumpScale=0;
  material.envMapIntensity=glass?1.1:.35;material.needsUpdate=true;
 }

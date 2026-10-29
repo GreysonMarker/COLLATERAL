@@ -21,16 +21,11 @@ export function finishCharacterMaterial(m,kind='cloth'){
  m.roughness=kind==='metal'?.3:kind==='skin'?.58:kind==='hair'?.72:.82;m.metalness=kind==='metal'?.65:0;m.envMapIntensity=kind==='metal'?.8:.3;
  return m;
 }
-// World-space grain and broad weathering avoid stretched textures on huge merged roads.
+// Keep the existing baked surface textures; avoid per-pixel procedural noise across the city.
 export function finishSurface(m,kind='concrete'){
  if(!desktop||!m.isMeshStandardMaterial)return m;
- const prior=m.onBeforeCompile,key=m.customProgramCacheKey();
- const scale=kind==='asphalt'?7:kind==='grass'?3:.9;
- m.onBeforeCompile=shader=>{prior.call(m,shader);shader.vertexShader='varying vec3 surfaceWorld;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvec4 surfaceP=vec4(transformed,1.);\n#ifdef USE_INSTANCING\nsurfaceP=instanceMatrix*surfaceP;\n#endif\nsurfaceWorld=(modelMatrix*surfaceP).xyz;');shader.fragmentShader='varying vec3 surfaceWorld;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
- vec3 grainP=surfaceWorld*${scale.toFixed(1)};
- float grit=fract(sin(dot(floor(grainP*7.),vec3(12.9898,78.233,37.719)))*43758.5453);
- float wear=sin(grainP.x*.031+sin(grainP.z*.043))*sin(grainP.z*.027+grainP.y*.06);
- diffuseColor.rgb*=.9+grit*.15+wear*.065;`);};m.customProgramCacheKey=()=>key+'-weathered-'+kind;m.needsUpdate=true;return m;
+ m.roughness=kind==='asphalt'?.96:kind==='grass'?.95:.9;
+ return m;
 }
 export function pressureMaterial(color='#d7eeff'){
  const m=new T.MeshBasicMaterial({color,transparent:true,opacity:.7,side:T.DoubleSide,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false});

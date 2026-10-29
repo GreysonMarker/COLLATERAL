@@ -27,6 +27,14 @@ const mobile=harness(false);mobile.look.request();assert.equal(mobile.requests,0
 const denied=harness();denied.canvas.requestPointerLock=()=>Promise.reject(Error('denied'));denied.look.request();await new Promise(r=>setImmediate(r));assert.equal(denied.errors.length,1);assert(!denied.look.locked);
 const oldBrowser=harness();delete oldBrowser.canvas.requestPointerLock;oldBrowser.look.request();assert.equal(oldBrowser.errors.length,1);
 for(const phone of [true,false]){const p=graphicsProfile(phone,2);const auto=createAdaptiveQuality(p.maxRatio,p.minRatio);for(let i=0;i<1500;i++)auto.update(35);assert.equal(auto.ratio,p.minRatio);for(let i=0;i<10000;i++)auto.update(16);assert.equal(auto.ratio,p.maxRatio);}
-assert(graphicsProfile(true,2).shadowSize<graphicsProfile(false,2).shadowSize);
+assert.equal(graphicsProfile(false,2).shadowSize,1024);
 assert.equal(graphicsProfile(false,1).maxRatio,1);
 console.log('PASS: unlimited relative look without holding, pause/release/resume, mobile isolation, capture failure handling, separate bounded graphics profiles.');
+const fastAuto=createAdaptiveQuality(1.15,.75,{windowMs:1000,slowMs:21,drop:.15});
+for(let i=0;i<31;i++)fastAuto.update(33.34);
+assert.equal(fastAuto.ratio,1);
+for(let i=0;i<200;i++)fastAuto.update(33.34);
+assert.equal(fastAuto.ratio,.75);
+for(let i=0;i<5000;i++)fastAuto.update(16.67);
+assert.equal(fastAuto.ratio,1.15);
+console.log('PASS: fast desktop adaptation, minimum resolution and sustained recovery.');
