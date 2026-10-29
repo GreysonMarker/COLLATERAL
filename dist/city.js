@@ -1,3 +1,4 @@
+import {titanLocomotionSafe} from './titan-physics.js';
 import {setVisualProfile,finishSurface} from './visual-polish.js';
 import {createCinematicRenderer} from './cinematic-renderer.js';
 import {polishFacade} from './facade-polish.js';
@@ -189,7 +190,32 @@ function jump(charge=0,heldSeconds=0){if(health.dead||groundRecovery.locked||def
 function beginJump(){if(health.dead||jumpHold.down||groundRecovery.locked||defense.busy||combatReaction)return;groundPress=!fly&&grounded;pendingJump=null;jumpHold.press(performance.now());}
 function endJump(){if(!jumpHold.down)return;const now=performance.now(),held=(now-jumpHold.started)/1000,onGround=groundPress,tap=jumpHold.release(now);groundPress=false;if(onGround){if(grounded&&!fly)jump(held<.26?0:chargeAmount(held),held);}else if(tap)jump();levitating=false;}
 function cancelJump(){jumpHold.cancel();groundPress=false;pendingJump=null;jumpCharge=0;levitating=false;}
-function reset(){desktopSpeed.reset();health.reset();heatVision?.reset();airRecovery.reset();lockOn?.clear();practiceDummy?.reset();heroGrapple?.cancel();defense.reset();defenseFX.reset();combatReaction=null;combat?.reset();grabs?.reset();heatVision?.stop();punches?.reset();hero.resetCollision();groundRecovery.reset();groundRecoveryPose={phase:"none",progress:0,grounded:false};flightRecovery=impactSkid=impactCarry=0;cancelJump();levitating=hoverAfterHold=false;flightMode='normal';player.set(0,.75,171);velocity.set(0,0,0);yaw=0;movementYaw=0;wasMoving=false;lastLook=performance.now();pitch=.16;viewYaw=0;viewPitch=.16;vertical=0;setGroundMode('walk');if(fly)toggleFlight()}
+function reset(){desktopSpeed.reset();health.reset();heatVision?.reset();airRecovery.reset();lockOn?.clear();practiceDummy?.reset();heroGrapple?.cancel();defense.reset();defenseFX.reset();combatReaction=null;combat?.reset();grabs?.reset();heatVision?.stop();punches?.reset();hero.resetCollision();groundRecovery.reset();groundRecoveryPose={phase:"none",progress:0,grounded:false};flightRecovery=impactSkid=impactCarry=0;cancelJump();levitating=hoverAfterHold=false;flightMode='normal';player.set(0,.75,171);velocity.set(0,0,0);yaw=0;movementYaw=0;wasMoving=false;lastLook=performance.now();pitch=.16;viewYaw=0;viewPitch=.16;vertical=0;setGroundMode('walk');fly=false;grounded=true;placeSpawn();}
+function placeSpawn(){
+ const scale=hero.character.height,width=hero.character.width/.74;
+ collisionWorld.bodyRadius=.28*scale*width;
+ hero.orientation.quaternion.identity();
+ const offsets=collisionWorld.bodyOffsets(hero.orientation.quaternion,false,scale,width);
+ // Intersections have clearance in every direction; test the entire body,
+ // including extra space around the shoulders, before accepting a spawn.
+ if(hero.character.id==='monolith'){
+  const radius=collisionWorld.bodyRadius;
+  let found=false;
+  for(let ring=0;ring<=12&&!found;ring++)for(let ix=-ring;ix<=ring&&!found;ix++)for(let iz=-ring;iz<=ring&&!found;iz++){
+   if(Math.max(Math.abs(ix),Math.abs(iz))!==ring)continue;
+   const x=S/2+ix*S,z=S*1.5+iz*S;
+   const candidate=new T.Vector3(x,groundHeight(x,z)+.02,z);
+   collisionWorld.bodyRadius=radius*1.2;
+   // Raising offsets by the clearance margin preserves ground contact.
+   const padded=offsets.map(o=>o.clone().add(new T.Vector3(0,radius*.2,0)));
+   if(!collisionWorld.bodyHit(candidate,padded)){player.copy(candidate);found=true;}
+  }
+  collisionWorld.bodyRadius=radius;
+ }
+ collisionWorld.recover(player,offsets);
+ safePosition.copy(player);safeOrientation.copy(hero.orientation.quaternion);
+ avatar.position.copy(player);updateSpeedControl();
+}
 $('reset-city').onclick=()=>multiplayer?multiplayer.resetCity():location.reload();
 function setPaused(value){$('helpPanel').hidden=!value;document.body.classList.toggle('paused',value);$('help').setAttribute('aria-expanded',String(value));if(value){desktopLook?.release();clearInput();punches?.reset();$('pause-note').textContent=multiplayer?.connected?'Online match continues while this menu is open.':'Single-player paused.';}if(!value&&!document.body.classList.contains('in-menu'))desktopLook?.request();lastTime=performance.now();}
 $('reset').onclick=()=>{reset();setPaused(false);};$('help').onclick=()=>setPaused($('helpPanel').hidden);$('closeHelp').onclick=$('resume-game').onclick=()=>setPaused(false);
@@ -297,7 +323,8 @@ for(const [object,methods,label] of [[destruction,['update','hit','heat','punch'
 window.performanceReport=()=>({...frameProfile.snapshot(),game:window.cityState()});
 $('performance-report').onclick=()=>{const report=window.performanceReport(),round=n=>n.toFixed(2);$('performance-output').textContent='Average FPS: '+round(1000/Math.max(.001,report.frame.averageMs))+'\nRecent frame times: average '+round(report.frame.averageMs)+' ms; 95th percentile '+round(report.frame.p95Ms)+' ms; worst '+round(report.frame.maxMs)+' ms\n'+Object.entries(report.sections).sort((a,b)=>b[1].maxMs-a[1].maxMs).map(([name,s])=>name+': avg '+round(s.averageMs)+' / worst '+round(s.maxMs)+' ms').join('\n')+'\nDestruction: collider work '+round(report.game.destruction.colliderPeakMs||0)+' ms peak; mesh rebuild '+round(report.game.destruction.rebuildPeakMs||0)+' ms; nearby section hitboxes '+(report.game.destruction.heroColliders||0)+'\nRoad tiles pending: '+(report.game.groundDamage.pendingTiles||0)+'; resolution scale: '+report.game.pixelRatio+'; draw calls: '+report.game.renderCalls+'; triangles: '+report.game.triangles+'\nCPU measurements; sections overlap. GPU time is not measured.';$('performance-output').hidden=false;};
 $('loading').style.display='none';setTimeout(()=>$('hint').style.opacity='0',14000);
-const mainMenu=createMainMenu({hero,onOpen(){desktopLook?.release();audio.stopMusic();clearInput();punches.reset();setPaused(false);},onPlay(){if(multiplayer&&!multiplayer.ready)return false;audio.startMusic();clearInput();desktopLook?.request();lastTime=performance.now();}});
+let spawnedCharacter=null;
+const mainMenu=createMainMenu({hero,onOpen(){desktopLook?.release();audio.stopMusic();clearInput();punches.reset();setPaused(false);},onPlay(){if(multiplayer&&!multiplayer.ready)return false;if(spawnedCharacter!==hero.character.id){reset();spawnedCharacter=hero.character.id;}audio.startMusic();clearInput();desktopLook?.request();lastTime=performance.now();}});
 heroClash=createHeroClash(scene,{destruction,groundDamage,cityLife,forest,combat,audio,camera,localId:()=>multiplayer?.id||'player',emit:e=>multiplayer.emit('clash',e)});
 heroGrapple=createHeroGrapple({send:e=>multiplayer?.emit('grab',e),peer:id=>multiplayer?.peer(id),
  canGrab:(p,mode)=>!health.dead&&!mainMenu.active&&!groundRecovery.locked&&(mode==='tackle'?!grounded&&p.flying&&p.fast&&p.velocity.length()>FLIGHT_SPEEDS.fast*.8&&p.position.distanceTo(player)<Math.min(24,6+p.velocity.length()*.12):p.position.distanceTo(player)<9),
@@ -329,7 +356,7 @@ const oldViewYaw=viewYaw;viewYaw=hitTracking?yaw:T.MathUtils.damp(viewYaw,yaw,14
 if(fly&&impactCarry>.75){const into=aim.x*impactNormal.x+aim.y*impactNormal.y+aim.z*impactNormal.z;if(into<0){aim.x-=impactNormal.x*into;aim.y-=impactNormal.y*into;aim.z-=impactNormal.z*into;}}
 const engaged=fly&&boost&&len>.08&&!defense.busy&&!combatReaction;if(engaged&&!boostEngaged&&boostEffect.age>.8){boostEffect.trigger(player,viewYaw,viewPitch);audio.boost();const center=player.clone().add(new T.Vector3(0,1.2,0));destruction.shockwave(center,20);groundDamage.shockwave(center,20);cityLife.shock(center,20,24,new T.Vector3(-Math.sin(viewYaw)*40,0,-Math.cos(viewYaw)*40));}boostEngaged=engaged;const impulse=boostEffect.update(dt);const normalResponse=gentleHover?7:responseRate(fly,len>.08,boost,boostEffect.age);const recoveryResponse=fly&&flightRecovery>0?recoveryRate(flightRecovery,normalResponse):normalResponse;const carryResponse=impactCarry>0?T.MathUtils.lerp(.3,recoveryResponse,(1-impactCarry/1.4)**2):recoveryResponse;const blend=1-Math.exp(-dt*(fly?carryResponse:normalResponse));impactCarry=Math.max(0,impactCarry-dt);flightRecovery=Math.max(0,flightRecovery-dt);impactSkid=Math.max(0,impactSkid-dt);bank=T.MathUtils.damp(bank,fly&&!reducedMotion?T.MathUtils.clamp(-(viewYaw-oldViewYaw)/Math.max(dt,.001)*.022,-.045,.045):0,6,dt);if(combatReaction){if(combatReaction.mode==='slide'){const v=Math.max(0,combatReaction.speed-combatReaction.deceleration*(combatReaction.age-dt*.5));velocity.copy(combatReaction.dir).multiplyScalar(v);}}else if(!fly&&(!grounded||impactSkid>0||groundRecovery.active)){const input=movementVector(mx,mz,movementYaw,0,false,1);coast(velocity,input.x,input.z,dt);if(grounded){const skidDrag=Math.exp(-.85*dt);velocity.x*=skidDrag;velocity.z*=skidDrag;}}else{velocity.x+=(aim.x-velocity.x)*blend;velocity.z+=(aim.z-velocity.z)*blend;}if(fly&&!combatReaction)velocity.y+=(aim.y-velocity.y)*blend;
 // Crush the volume ahead before the body sweep reaches it; preserve arena walls.
-const titanWalking=hero.character.id==='monolith'&&!fly&&grounded&&!combatReaction&&!health.dead&&!heroGrapple.held;
+const titanWalking=titanLocomotionSafe({character:hero.character,flying:fly,vertical,combat:!!combatReaction||airRecovery.active,dead:health.dead,held:heroGrapple.held});
 titanCrushClock-=dt;
 if(titanWalking&&len>.08&&titanCrushClock<=0){titanCrushClock=.25;const direction=new T.Vector3(velocity.x,0,velocity.z).normalize();
  for(const h of [6,22,40,56]){const point=player.clone().addScaledVector(direction,12);point.y+=h;const seen=new Set();
@@ -337,7 +364,7 @@ if(titanWalking&&len>.08&&titanCrushClock<=0){titanCrushClock=.25;const directio
 }
 // A slim capsule follows the flight pose; short sweeps stop fast dives tunnelling.
 collisionWorld.bodyRadius=.28*hero.character.height*hero.character.width/.74;
-let offsets=collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||!grounded,hero.character.height,hero.character.width/.74);
+let offsets=collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74);
 function clearBodySpace(){
  const seen=new Set(),up=new T.Vector3(0,1,0);
  for(const o of offsets){const p=player.clone().add(o);for(const solid of collisionWorld.nearby(p.x,p.z,collisionWorld.bodyRadius,p.y,true)){
@@ -346,7 +373,7 @@ function clearBodySpace(){
  }}return seen.size>0;
 }
 if(!heroGrapple.held&&collisionWorld.bodyHit(player,offsets)&&(fly||groundRecovery.active||combatReaction)){clearBodySpace();}
-if(!heroGrapple.held&&!collisionWorld.recover(player,offsets)){player.copy(safePosition);hero.orientation.quaternion.copy(safeOrientation);offsets=collisionWorld.bodyOffsets(safeOrientation,fly||!grounded,hero.character.height,hero.character.width/.74);collisionWorld.recover(player,offsets);}
+if(!heroGrapple.held&&!collisionWorld.recover(player,offsets)){player.copy(safePosition);hero.orientation.quaternion.copy(safeOrientation);offsets=collisionWorld.bodyOffsets(safeOrientation,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74);collisionWorld.recover(player,offsets);}
 const movementOrientation=hero.orientation.quaternion.clone();
 if(pendingJump){pendingJump.remaining-=dt;if(!grounded||fly)pendingJump=null;else if(pendingJump.remaining<=0){groundDamage.jumpTakeoff(player,pendingJump.charge);vertical=jumpImpulse(pendingJump.charge);grounded=false;pendingJump=null;jumpCharge=0;}}
 if(!fly)vertical-=24*dt;
@@ -370,7 +397,14 @@ function respondToContact(axis){
  airRecovery.interrupt();
  const contact=collisionWorld.lastContact;
 
- if(titanWalking&&contact?.solid?.building){const point=player.clone().add(contact.offset);destruction.punch(contact.solid.building,point,new T.Vector3(velocity.x,0,velocity.z).normalize(),'normal');return;}
+ // Walking mass is not a combat impact. This also covers brief unsupported
+ // moments over craters, scenery, vehicles and the arena boundary.
+ if(titanWalking&&contact){
+  if(contact.solid?.building){const point=player.clone().add(contact.offset);destruction.punch(contact.solid.building,point,new T.Vector3(velocity.x,0,velocity.z).normalize(),'normal');}
+  if(contact.normal.y>.55||axis==='y'&&vertical<0){supported=true;vertical=velocity.y=0;}
+  else velocity[axis]=0;
+  return;
+ }
  if(!contact){if(axis==='y'){if(!fly&&vertical<0)supported=true;vertical=velocity.y=0;}else velocity[axis]=0;return;}
  // Gravity gives v²=2gh: sqrt(height scale) preserves proportional fall distance.
  const titanLandingScale=hero.character.id==='monolith'?Math.sqrt(hero.character.height):1;
@@ -436,11 +470,11 @@ if(grabs.carrying){const victim=grabs.targetId==='practice-dummy'?practiceDummy?
  if(victim&&victim.y<=floorAt(victim.x,victim.z,victim.y+1)+.3){const amount=carryDamage.impact({normal:new T.Vector3(0,1,0)},velocity,{held:true});if(amount&&grabs.confirmedTargetId)combat.hit(grabs.confirmedTargetId,{id:'carry-ground-'+elapsed+'-'+(++carryHitId),kind:'collision',attacker:'player',damage:amount});if(grabs.tackling&&velocity.y<0)grabs.endTackle(true);}}
 lockOn.draw();healthHUD??=createHealthHUD({combat,health,camera,lockOn});healthHUD.update(dt);heatVision.update(dt,!health.dead&&!groundRecovery.locked&&!grabs.active&&!defense.busy&&!combatReaction);hudText(heatButton.querySelector('small'),heatVision.stats.cooldown>0?heatVision.stats.cooldown.toFixed(1)+'s':(heatVision.stats.charge??3).toFixed(1)+'s · HOLD');defenseFX.update(dt,defense);hudText($('parry').querySelector('small'),defense.vulnerable?'OPEN':defense.cooldown>0?defense.cooldown.toFixed(1)+'s':(mobile?'TAP · Q':'COUNTER'));$('parry').setAttribute('aria-disabled',String(defense.cooldown>0||defense.locked));$('block').setAttribute('aria-pressed',String(defense.blocking));
 // Resolve the newly animated pose in this frame, before it can start embedded next frame.
-const posedOffsets=collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||!grounded,hero.character.height,hero.character.width/.74);
+const posedOffsets=collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74);
 if(!heroGrapple.held&&!collisionWorld.recover(player,posedOffsets)){hero.orientation.quaternion.copy(movementOrientation);collisionWorld.recover(player,offsets);}
 if(!fly)velocity.y=vertical;collisionWorld.confine(player,velocity,collisionWorld.bodyRadius,posedOffsets);if(!fly)vertical=velocity.y;
 avatar.position.copy(player);
-if(!collisionWorld.bodyHit(player,collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||!grounded,hero.character.height,hero.character.width/.74))){safePosition.copy(player);safeOrientation.copy(hero.orientation.quaternion);}
+if(!collisionWorld.bodyHit(player,collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74))){safePosition.copy(player);safeOrientation.copy(hero.orientation.quaternion);}
 
 if((shadowTick++%12)===0){sunlight.position.copy(player).addScaledVector(sunDir,500);sunlight.target.position.copy(player);sunlight.target.updateMatrixWorld()}
 hudText(hud.mode,airRecovery.ready?'FLIGHT READY':airRecovery.active&&!grounded?'RECOVER IN '+airRecovery.remaining.toFixed(1)+'s':groundRecoveryPose.phase==='rising'?'GETTING UP':groundRecoveryPose.phase==='down'?'RECOVERING':levitating?'LEVITATING':fly?flightMode.toUpperCase()+' FLIGHT':'ON FOOT');hudText(hud.jump,airRecovery.ready?'RECOVER':jumpCharge>0?'CHARGE '+Math.round(jumpCharge*100)+'%':levitating?'RISE':fly?'FLY':'JUMP');
