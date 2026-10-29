@@ -366,6 +366,8 @@ if(titanWalking&&len>.08&&titanCrushClock<=0){titanCrushClock=.25;const directio
 collisionWorld.ground=hero.character.id==='monolith'?groundDamage.titanField.height:groundHeight;
 collisionWorld.bodyRadius=.28*hero.character.height*hero.character.width/.74;
 let offsets=collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74);
+// Include the next frame's travel so no trunk or branch can stop the sweep.
+if(titanWalking)forest.crushBody(player,offsets,collisionWorld.bodyRadius+Math.hypot(velocity.x,velocity.z)*dt+.1,collisionWorld);
 function clearBodySpace(){
  const seen=new Set(),up=new T.Vector3(0,1,0);
  for(const o of offsets){const p=player.clone().add(o);for(const solid of collisionWorld.nearby(p.x,p.z,collisionWorld.bodyRadius,p.y,true)){

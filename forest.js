@@ -20,7 +20,7 @@ export function createForest(scene, specs, mobile=false) {
     tree.crowns.push({x:x+sway,y:h*.89,z,r:h*.24});
     for(const crown of tree.crowns)for(let k=0;k<3;k++){obj.position.set(crown.x,crown.y,crown.z);obj.rotation.set(k===2?Math.PI/2:rnd()*.35,k*Math.PI/3+rnd()*.5,rnd()*.4-.2);obj.scale.set(crown.r*2.5,crown.r*2.2,1);obj.updateMatrix();cards.setMatrixAt(ci,obj.matrix);color.set(tree.color).multiplyScalar(.72+(.25*crown.y/h)+rnd()*.20);cards.setColorAt(ci++,color)}
   }
-  for(let i=0;i<specs.length;i++)specs[i].solidEnd=i+1<specs.length?specs[i+1].solidStart:solids.length;
+  for(let i=0;i<specs.length;i++){const tree=specs[i];tree.solidEnd=i+1<specs.length?specs[i+1].solidStart:solids.length;for(let j=tree.solidStart;j<tree.solidEnd;j++)solids[j].tree=tree;}
   cards.count=ci;trunks.count=ti;cards.castShadow=cards.receiveShadow=trunks.castShadow=trunks.receiveShadow=true;// Split by region: a city-wide instance batch otherwise submits every tree
   // even when the camera's far plane hides most of the city.
   const regions=new Map();for(const tree of specs){const key=Math.floor(tree.x/448)+','+Math.floor(tree.z/448);if(!regions.has(key))regions.set(key,[]);regions.get(key).push(tree);}
@@ -71,5 +71,18 @@ export function createForest(scene, specs, mobile=false) {
    for(const [attribute,stride] of [[leaves.instanceMatrix,16],[leaves.instanceColor,3]])if(attribute){attribute.clearUpdateRanges();if(index){attribute.addUpdateRange(0,index*stride);attribute.needsUpdate=true;}}
   }
 
-  return {update,damage,solids};
+  // Resolve whole trees from branch contacts before the actor movement sweep.
+  // damage() disables every branch immediately and reuses bounded falling visuals.
+  const crushPoint=new T.Vector3(),treePoint=new T.Vector3();
+  function crushBody(position,offsets,radius,world){
+   let crushed=0;
+   for(const offset of offsets){crushPoint.addVectors(position,offset);
+    for(const solid of world.nearby(crushPoint.x,crushPoint.z,radius,crushPoint.y,true)){
+     const tree=solid.tree;if(!tree||tree.broken||!world.sphereSolid(crushPoint,radius,solid))continue;
+     treePoint.set(tree.x,.5,tree.z);damage(treePoint,.1);crushed++;
+    }
+   }
+   return crushed;
+  }
+  return {update,damage,crushBody,solids};
 }
