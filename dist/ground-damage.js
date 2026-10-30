@@ -1,7 +1,8 @@
+import {createCraterMask,CRATER_MASK_GLSL} from './crater-mask.js';
 import * as T from './vendor/three.module.js';
 import {createBlastRubble} from './blast-rubble.js';
 import {BLOCK,PARK,residentialSurface} from './map-layout.js';
-const TILE=16,MASK_SIZE=512,clamp=T.MathUtils.clamp;
+const TILE=16,clamp=T.MathUtils.clamp;
 export function groundImpactProfile(velocity,normal){
  const speed=velocity.length(),closing=Math.max(0,-velocity.dot(normal)),direct=closing/Math.max(speed,1);
  if(speed<32||closing<8)return null;
@@ -17,19 +18,21 @@ export function createGroundField(baseHeight,minCraterRadius=0){
  return {add,raw,height,scars,tiles};
 }
 export function createGroundDamage(scene,baseHeight,materials,{emit=()=>{},affect=()=>{},mobile=false}={}){
- const maskData=new Uint8Array(MASK_SIZE*MASK_SIZE),mask=new T.DataTexture(maskData,MASK_SIZE,MASK_SIZE,T.RedFormat);mask.magFilter=mask.minFilter=T.NearestFilter;mask.generateMipmaps=false;mask.needsUpdate=true;
+ const craterMask=createCraterMask();
  // Titan support ignores foot-sized excavation; visible terrain keeps every scar.
  const titanField=createGroundField(baseHeight,10);
- const field=createGroundField(baseHeight),meshes=new Map(),dirty=new Set(),uniforms={groundTileCount:{value:0},groundMask:{value:mask}};
+ const field=createGroundField(baseHeight),meshes=new Map(),dirty=new Set(),uniforms={groundTileCount:{value:0},...craterMask.uniforms};
  const aftermath=createBlastRubble(scene,(x,z)=>field.height(x,z),{mobile});
  let decorationsDirty=false;let clock=0,lastHit=-10,lastTouch=-10,lastTrail=null,lastRefresh=-10;
  const stats={craters:0,slideScars:0,visibleTiles:0,persistentTiles:0};
  for(const material of new Set(materials)){
   const prior=material.onBeforeCompile.bind(material),cache=material.customProgramCacheKey.bind(material);
-  const cacheKey=cache();material.onBeforeCompile=shader=>{prior(shader);Object.assign(shader.uniforms,uniforms);shader.vertexShader='varying vec3 groundWorld;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ngroundWorld=(modelMatrix*vec4(position,1.0)).xyz;');shader.fragmentShader='varying vec3 groundWorld;uniform sampler2D groundMask;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>',`#include <clipping_planes_fragment>
- if(groundWorld.y<1.25){vec2 cell=floor(groundWorld.xz/${TILE}.0)+vec2(${MASK_SIZE/2}.0);if(all(greaterThanEqual(cell,vec2(0.0)))&&all(lessThan(cell,vec2(${MASK_SIZE}.0)))&&texture2D(groundMask,(cell+.5)/${MASK_SIZE}.0).r>.5)discard;}`);};material.customProgramCacheKey=()=>cacheKey+'-ground-excavation-mask-v2';material.needsUpdate=true;
+  const cacheKey=cache();material.onBeforeCompile=shader=>{prior(shader);Object.assign(shader.uniforms,uniforms);shader.vertexShader='varying vec3 groundWorld;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ngroundWorld=(modelMatrix*vec4(position,1.0)).xyz;');shader.fragmentShader='varying vec3 groundWorld;\n'+CRATER_MASK_GLSL+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>',`#include <clipping_planes_fragment>
+ if(groundWorld.y<1.25&&craterCoverage(groundWorld.xz)>.05)discard;`);};material.customProgramCacheKey=()=>cacheKey+'-ground-crater-outline-v3';material.needsUpdate=true;
  }
  const material=new T.MeshStandardMaterial({vertexColors:true,roughness:.97,metalness:0});
+ material.onBeforeCompile=shader=>{Object.assign(shader.uniforms,uniforms);shader.vertexShader='varying vec2 craterWorld;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ncraterWorld=(modelMatrix*vec4(position,1.0)).xz;');shader.fragmentShader='varying vec2 craterWorld;\n'+CRATER_MASK_GLSL+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(craterCoverage(craterWorld)<=.05)discard;');};
+ material.customProgramCacheKey=()=> 'crater-only-surface-v3';
  let debris=new T.InstancedMesh(new T.IcosahedronGeometry(1,0),new T.MeshStandardMaterial({color:'#70727a',roughness:1}),mobile?320:480);debris.count=0;debris.frustumCulled=false;scene.add(debris);const rubble=[];const fractures=[];const crackMesh=new T.LineSegments(new T.BufferGeometry(),new T.LineBasicMaterial({color:'#181d27'}));crackMesh.frustumCulled=false;scene.add(crackMesh);
  function groundColor(x,z,y){const original=baseHeight(x,z),depth=original-y;
   if(depth>.12){const hash=(a,b)=>{const n=Math.sin(a*127.1+b*311.7)*43758.5453;return n-Math.floor(n);};const coarse=hash(Math.floor(x/7),Math.floor(z/7)),grain=hash(x,z),noise=coarse*.09+grain*.06;return new T.Color().setRGB(.19+noise,.175+noise,.15+noise);}
@@ -41,11 +44,11 @@ export function createGroundDamage(scene,baseHeight,materials,{emit=()=>{},affec
   const crossing=(Math.abs(dz-44)<2.5&&Math.abs(dx)>47&&Math.abs(dx)<65&&Math.abs((dx+BLOCK/2)/2.3-Math.round((dx+BLOCK/2)/2.3))<.25)||(Math.abs(dx-44)<2.5&&Math.abs(dz)>47&&Math.abs(dz)<65&&Math.abs((dz+BLOCK/2)/2.3-Math.round((dz+BLOCK/2)/2.3))<.25);
   if(ax<.15||az<.15||Math.abs(ax-.5)<.15||Math.abs(az-.5)<.15||crossing)return new T.Color('#c5c4ad');return new T.Color('#3c4864');
  }
- function build(key){const [a,b]=key.split(',').map(Number),positions=[],colors=[],uv=[],indices=[];
-  for(let z=0;z<=TILE;z++)for(let x=0;x<=TILE;x++){const wx=a*TILE+x,wz=b*TILE+z,y=field.raw(wx,wz);positions.push(wx,y,wz);const color=groundColor(wx,wz,y);colors.push(color.r,color.g,color.b);uv.push(wx,wz);}
+ function build(key){const [a,b]=key.split(',').map(Number),positions=[],colors=[],uv=[],indices=[],depths=[];
+  for(let z=0;z<=TILE;z++)for(let x=0;x<=TILE;x++){const wx=a*TILE+x,wz=b*TILE+z,y=field.raw(wx,wz);positions.push(wx,y,wz);depths.push(baseHeight(wx,wz)-y);const color=groundColor(wx,wz,y);colors.push(color.r,color.g,color.b);uv.push(wx,wz);}
   for(let z=0;z<TILE;z++)for(let x=0;x<TILE;x++){const p=z*(TILE+1)+x;indices.push(p,p+TILE+1,p+1,p+1,p+TILE+1,p+TILE+2);}
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.setIndex(indices);geometry.computeVertexNormals();geometry.computeBoundingSphere();
-  let mesh=meshes.get(key);if(mesh){mesh.geometry.dispose();mesh.geometry=geometry;}else{mesh=new T.Mesh(geometry,material);mesh.matrixAutoUpdate=false;mesh.receiveShadow=true;mesh.visible=true;scene.add(mesh);meshes.set(key,mesh);}const mx=a+MASK_SIZE/2,mz=b+MASK_SIZE/2;if(mx>=0&&mx<MASK_SIZE&&mz>=0&&mz<MASK_SIZE){maskData[mz*MASK_SIZE+mx]=255;mask.needsUpdate=true;}dirty.delete(key);
+  let mesh=meshes.get(key);if(mesh){mesh.geometry.dispose();mesh.geometry=geometry;}else{mesh=new T.Mesh(geometry,material);mesh.matrixAutoUpdate=false;mesh.receiveShadow=true;mesh.visible=true;scene.add(mesh);meshes.set(key,mesh);}craterMask.update(a,b,depths);dirty.delete(key);
  }
  let networkStamp=null;
  function stamp(x,z,radius,depth,guard=null){networkStamp?.(x,z,radius,depth,guard);titanField.add(x,z,radius,depth,guard);for(const key of field.add(x,z,radius,depth,guard))dirty.add(key);stats.persistentTiles=field.tiles.size;decorationsDirty=true;}
