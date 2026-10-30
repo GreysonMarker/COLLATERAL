@@ -292,10 +292,11 @@ export function createCityLife(scene,material,mobile,world,{onThrowImpact=null,o
  function crushVehicles(position,offsets,radius,emit){
   const p=new T.Vector3(),hit=new Set();
   for(const o of offsets){p.addVectors(position,o);for(const solid of world.nearby(p.x,p.z,radius,p.y,true)){
-   const car=solid.actor;if(solid.kind!=='vehicle'||!car||!cars.includes(car)||car.held||car.cut||!world.sphereSolid(p,radius,solid))continue;
-   car.cut=true;car.current=0;hit.add(car);emit?.(new T.Vector3(solid.x,solid.y2,solid.z));
+   const car=solid.actor;if(solid.kind!=='vehicle'||!car||!cars.includes(car)||car.held||car.cut||hit.has(car)||car.reaction?.titanKick&&car.reaction.age<1||!world.sphereSolid(p,radius,solid))continue;
+   const direction=new T.Vector3(solid.x-position.x,0,solid.z-position.z);if(direction.lengthSq()<.01)direction.set(0,0,1);direction.normalize();
+   car.reaction={x:solid.x,y:world.ground(solid.x,solid.z)+.2,z:solid.z,v:direction.multiplyScalar(32).setY(9),pitch:0,roll:0,spin:1.2,heading:Math.atan2(solid.dx,solid.dz),age:0,rest:0,titanKick:true};
+   car.current=0;hit.add(car);emit?.(new T.Vector3(solid.x,solid.y2,solid.z));
   }}
-  for(const list of world.dynamic.values())for(const solid of list)if(hit.has(solid.actor))solid.disabled=true;
   return hit.size;
  }
  return {crushVehicles,update,shock,punch,heat,frighten,acquireGrab,positionGrab,releaseGrab,get heatPoint(){return heatPoint;},get heatPasses(){return heatPasses;},get stats(){return {...reactionStats,...deaths.stats,...fragments.stats,dead:deaths.stats.dead+vanished,vanished,injured,activeParticles:particles.length,panicked:nearby.filter(p=>!p.cut&&p.fear).length,population,trafficCount:cars.length,visiblePeople,visibleCars}}};

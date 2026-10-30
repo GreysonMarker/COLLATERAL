@@ -42,6 +42,9 @@ export class CollisionWorld{
    if(value!==position[axis]){const outward=position[axis]<min?-1:1;position[axis]=value;if(velocity&&velocity[axis]*outward>0)velocity[axis]=0;touched=true;}
   }return touched;
  }
+ // Actor movement filtering is separate from geometric hit tests: crushing and
+ // kicking still detect these objects, but they exert no force on the titan.
+ ignoresBodySolid(s){return !!this.titanBody&&!s.indestructible&&!s.building&&(s.kind==='branch'||s.kind==='vehicle'||s.streetProp||s.actor&&s.kind==='convex');}
  sphereSolid(p,r,s){if(s.disabled||this.titanWalking&&s.fallingSection)return false;
  if(s.building?.pendingCuts)for(const cut of s.building.pendingCuts){if(cut.sphere){if(p.distanceToSquared(cut.p)<(cut.radius+r)**2)return false;continue;}const x=p.x-cut.p.x,y=p.y-cut.p.y,z=p.z-cut.p.z,a=x*cut.d.x+y*cut.d.y+z*cut.d.z;if(a>=-4.2&&a<=cut.depth&&x*x+y*y+z*z-a*a<(cut.radius+r)**2)return false;}
 if(p.y+r<s.y1||p.y-r>s.y2||p.x+r<s.x1||p.x-r>s.x2||p.z+r<s.z1||p.z-r>s.z2)return false;
@@ -57,7 +60,7 @@ if(p.y+r<s.y1||p.y-r>s.y2||p.x+r<s.x1||p.x-r>s.x2||p.z+r<s.z1||p.z-r>s.z2)return
   for(const o of offsets){const p=position.clone().add(o),groundDepth=this.ground(p.x,p.z)+radius-p.y;
    const boundary=this.arenaContact(p,radius);if(boundary)add(boundary.normal,boundary.depth,o,boundary.solid);
    if(groundDepth>.004)add(new T.Vector3(0,1,0),groundDepth,o);
-   for(const s of this.nearby(p.x,p.z,radius,p.y,hero)){if((excludeActor&&s.actor===excludeActor)||!this.sphereSolid(p,radius,s))continue;
+   for(const s of this.nearby(p.x,p.z,radius,p.y,hero)){if(this.ignoresBodySolid(s)||(excludeActor&&s.actor===excludeActor)||!this.sphereSolid(p,radius,s))continue;
     let normal,depth;
     if(s.kind==='convex'){let plane=s.planes[0];for(const q of s.planes)if(q.distanceToPoint(p)>plane.distanceToPoint(p))plane=q;normal=plane.normal.clone();depth=radius-plane.distanceToPoint(p);}
     else if(s.kind==='branch'){const ab=new T.Vector3().subVectors(s.b,s.a),t=T.MathUtils.clamp(p.clone().sub(s.a).dot(ab)/ab.lengthSq(),0,1);normal=p.clone().sub(s.a.clone().addScaledVector(ab,t));depth=radius+s.r-normal.length();normal.normalize();}
@@ -79,7 +82,7 @@ if(p.y+r<s.y1||p.y-r>s.y2||p.x+r<s.x1||p.x-r>s.x2||p.z+r<s.z1||p.z-r>s.z2)return
   let x1=Infinity,y1=Infinity,z1=Infinity,x2=-Infinity,y2=-Infinity,z2=-Infinity;
   for(const o of offsets){x1=Math.min(x1,o.x);x2=Math.max(x2,o.x);y1=Math.min(y1,o.y);y2=Math.max(y2,o.y);z1=Math.min(z1,o.z);z2=Math.max(z2,o.z);}
   const candidates=this.nearbyBounds(position.x+x1-r,position.z+z1-r,position.x+x2+r,position.z+z2+r,position.y+y1-r,position.y+y2+r,true,this._bodyCandidates??=new Set());
-  for(const o of offsets){p.addVectors(position,o);if(this.arenaContact(p,r))return true;if(p.y-r<this.ground(p.x,p.z)-.004)return true;for(const s of candidates)if(this.sphereSolid(p,r,s))return true;}
+  for(const o of offsets){p.addVectors(position,o);if(this.arenaContact(p,r))return true;if(p.y-r<this.ground(p.x,p.z)-.004)return true;for(const s of candidates)if(!this.ignoresBodySolid(s)&&this.sphereSolid(p,r,s))return true;}
   return false;
  }
  // Pose changes can overlap the ground even when translation was swept safely.
@@ -96,7 +99,7 @@ if(p.y+r<s.y1||p.y-r>s.y2||p.x+r<s.x1||p.x-r>s.x2||p.z+r<s.z1||p.z-r>s.z2)return
   return false;
  }
  moveAxis(position,axis,amount,offsets){this.lastContact=null;if(!amount)return false;const start=position[axis];position[axis]+=amount;if(!this.bodyHit(position,offsets))return false;this.lastContact=this.contactAt(position,offsets,this.bodyRadius??.28);let lo=0,hi=1;for(let k=0;k<9;k++){const t=(lo+hi)/2;position[axis]=start+amount*t;if(this.bodyHit(position,offsets))hi=t;else lo=t}position[axis]=start+amount*lo;return true}
- floorAt(x,z,maxY,hero=false){let floor=this.ground(x,z);const origin=new T.Vector3(x,maxY+.002,z),down=new T.Vector3(0,-1,0);for(const s of this.nearby(x,z,.05,null,hero)){if(s.kind==='vehicle'&&(Math.abs((x-s.x)*s.dz-(z-s.z)*s.dx)>s.w||Math.abs((x-s.x)*s.dx+(z-s.z)*s.dz)>s.l))continue;if(s.kind==='branch'||x<s.x1||x>s.x2||z<s.z1||z>s.z2)continue;if(s.kind==='convex'){let lo=0,hi=Infinity;for(const p of s.planes){const d=p.distanceToPoint(origin),v=p.normal.dot(down);if(Math.abs(v)<1e-8){if(d>0){hi=-1;break}}else if(v<0)lo=Math.max(lo,-d/v);else hi=Math.min(hi,-d/v)}if(lo<=hi&&lo>=0&&lo<Infinity)floor=Math.max(floor,origin.y-lo)}else if(s.y2<=maxY+.003)floor=Math.max(floor,s.y2)}return floor}
+ floorAt(x,z,maxY,hero=false){let floor=this.ground(x,z);const origin=new T.Vector3(x,maxY+.002,z),down=new T.Vector3(0,-1,0);for(const s of this.nearby(x,z,.05,null,hero)){if(hero&&this.ignoresBodySolid(s))continue;if(s.kind==='vehicle'&&(Math.abs((x-s.x)*s.dz-(z-s.z)*s.dx)>s.w||Math.abs((x-s.x)*s.dx+(z-s.z)*s.dz)>s.l))continue;if(s.kind==='branch'||x<s.x1||x>s.x2||z<s.z1||z>s.z2)continue;if(s.kind==='convex'){let lo=0,hi=Infinity;for(const p of s.planes){const d=p.distanceToPoint(origin),v=p.normal.dot(down);if(Math.abs(v)<1e-8){if(d>0){hi=-1;break}}else if(v<0)lo=Math.max(lo,-d/v);else hi=Math.min(hi,-d/v)}if(lo<=hi&&lo>=0&&lo<Infinity)floor=Math.max(floor,origin.y-lo)}else if(s.y2<=maxY+.003)floor=Math.max(floor,s.y2)}return floor}
  cameraFraction(start,end){
   const distance=start.distanceTo(end),steps=Math.max(1,Math.ceil(distance/.16)),point=this._cameraPoint??=new T.Vector3();
   const candidates=this.nearbyBounds(Math.min(start.x,end.x)-.16,Math.min(start.z,end.z)-.16,Math.max(start.x,end.x)+.16,Math.max(start.z,end.z)+.16,Math.min(start.y,end.y)-.16,Math.max(start.y,end.y)+.16,false,this._cameraCandidates??=new Set());
