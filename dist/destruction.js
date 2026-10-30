@@ -300,7 +300,7 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
  }
  function punch(b,point,direction,kind,cone=null){
   if(!b.falling){const shape=cone||{origin:point,reach:337.5,width:10.5,spread:12/337.5};if(kind==='serious')impactVisuals.cut(b,shape.origin,direction,shape.width,shape.reach,shape.sphere?-1:shape.spread,shape.sphere?-shape.width:0);else impactVisuals.cut(b,point,direction,(kind==='quick'?1.5:NORMAL_DAMAGE_RADIUS)+CELL*.65,(kind==='quick'?4:32)+CELL);if(!b.active)burst(point,direction.clone().multiplyScalar(kind==='quick'?40:150),kind==='quick'?35:80,kind==='quick'?3:9);}
-  if(!b.active&&!activate(b)){const p=point.clone(),d=direction.clone(),shape=cone?{...cone,origin:cone.origin.clone()}:null;if(kind!=='serious')contactCut(b,p,d,{radius:kind==='quick'?1.5:NORMAL_DAMAGE_RADIUS,depth:kind==='quick'?4:32});defer(b,()=>punch(b,p,d,kind,shape));return;}
+  if(!b.active&&!activate(b)){const p=point.clone(),d=direction.clone(),shape=cone?{...cone,origin:cone.origin.clone()}:null;if(kind!=='serious')contactCut(b,p,d,{radius:kind==='quick'?1.5:NORMAL_DAMAGE_RADIUS,depth:kind==='quick'?4:32});else if(shape?.sphere){b.pendingCuts??=[];b.pendingCuts.push({sphere:true,p:shape.origin.clone(),radius:shape.width});}defer(b,()=>punch(b,p,d,kind,shape));return;}
   if(b.falling)return;
   const velocity=direction.clone().multiplyScalar(kind==='quick'?40:150);
   if(kind!=='serious'){strike(b,point,velocity,{destructive:true,graze:false,fast:kind==='quick'?0:1,severe:kind==='normal',topOnly:false,radius:kind==='quick'?1.5:NORMAL_DAMAGE_RADIUS,depth:kind==='quick'?4:32});return;}

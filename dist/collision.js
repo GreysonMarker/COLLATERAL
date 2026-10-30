@@ -42,7 +42,7 @@ export class CollisionWorld{
    if(value!==position[axis]){const outward=position[axis]<min?-1:1;position[axis]=value;if(velocity&&velocity[axis]*outward>0)velocity[axis]=0;touched=true;}
   }return touched;
  }
- sphereSolid(p,r,s){if(s.disabled)return false;
+ sphereSolid(p,r,s){if(s.disabled||this.titanWalking&&s.fallingSection)return false;
  if(s.building?.pendingCuts)for(const cut of s.building.pendingCuts){if(cut.sphere){if(p.distanceToSquared(cut.p)<(cut.radius+r)**2)return false;continue;}const x=p.x-cut.p.x,y=p.y-cut.p.y,z=p.z-cut.p.z,a=x*cut.d.x+y*cut.d.y+z*cut.d.z;if(a>=-4.2&&a<=cut.depth&&x*x+y*y+z*z-a*a<(cut.radius+r)**2)return false;}
 if(p.y+r<s.y1||p.y-r>s.y2||p.x+r<s.x1||p.x-r>s.x2||p.z+r<s.z1||p.z-r>s.z2)return false;
  if(s.kind==='vehicle'){const dx=p.x-s.x,dz=p.z-s.z,lateral=dx*s.dz-dz*s.dx,longitudinal=dx*s.dx+dz*s.dz;const a=Math.max(Math.abs(lateral)-s.w,0),b=Math.max(Math.abs(longitudinal)-s.l,0),c=Math.max(s.y1-p.y,0,p.y-s.y2);return a*a+b*b+c*c<(r-.003)**2;}
@@ -83,7 +83,7 @@ if(p.y+r<s.y1||p.y-r>s.y2||p.x+r<s.x1||p.x-r>s.x2||p.z+r<s.z1||p.z-r>s.z2)return
   return false;
  }
  // Pose changes can overlap the ground even when translation was swept safely.
- recover(position,offsets){
+ recover(position,offsets,{verticalOnly=false}={}){
   this.confine(position,null,this.bodyRadius??.28,offsets);
   if(!this.bodyHit(position,offsets))return true;
   const start=position.clone(),trial=start.clone();let lift=0;
@@ -92,7 +92,7 @@ if(p.y+r<s.y1||p.y-r>s.y2||p.x+r<s.x1||p.x-r>s.x2||p.z+r<s.z1||p.z-r>s.z2)return
   if(!this.bodyHit(trial,offsets)){position.copy(trial);return true;}
   // Prefer a small upward correction for roofs, then the closest free direction.
   const directions=[new T.Vector3(0,1,0)];for(let y=1;y>=-1;y--)for(let x=-1;x<=1;x++)for(let z=-1;z<=1;z++)if((x||y||z)&&!(x===0&&y===1&&z===0))directions.push(new T.Vector3(x,y,z).normalize());
-  for(const radius of [.025,.05,.1,.2,.35,.55,.8,1.2,1.8,2.5])for(const direction of directions){trial.copy(start).addScaledVector(direction,radius);trial.y+=lift;if(!this.bodyHit(trial,offsets)){position.copy(trial);return true;}}
+  for(const radius of [.025,.05,.1,.2,.35,.55,.8,1.2,1.8,2.5])for(const direction of directions){if(verticalOnly&&(direction.x||direction.z))continue;trial.copy(start).addScaledVector(direction,radius);trial.y+=lift;if(!this.bodyHit(trial,offsets)){position.copy(trial);return true;}}
   return false;
  }
  moveAxis(position,axis,amount,offsets){this.lastContact=null;if(!amount)return false;const start=position[axis];position[axis]+=amount;if(!this.bodyHit(position,offsets))return false;this.lastContact=this.contactAt(position,offsets,this.bodyRadius??.28);let lo=0,hi=1;for(let k=0;k<9;k++){const t=(lo+hi)/2;position[axis]=start+amount*t;if(this.bodyHit(position,offsets))hi=t;else lo=t}position[axis]=start+amount*lo;return true}
