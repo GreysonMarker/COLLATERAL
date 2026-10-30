@@ -365,6 +365,7 @@ if(titanWalking&&len>.08&&titanCrushClock<=0){titanCrushClock=.25;const directio
  for(const solid of collisionWorld.nearby(point.x,point.z,16,point.y,true)){const b=solid.building;if(!b||seen.has(b)||!collisionWorld.sphereSolid(point,18,solid))continue;seen.add(b);destruction.punch(b,point,direction,'serious',{origin:point.clone(),width:36,reach:72,spread:0,sphere:true});}}
 }
 // A slim capsule follows the flight pose; short sweeps stop fast dives tunnelling.
+collisionWorld.titanWalking=titanWalking;
 collisionWorld.ground=hero.character.id==='monolith'?groundDamage.titanField.height:groundHeight;
 collisionWorld.bodyRadius=.28*hero.character.height*hero.character.width/.74;
 let offsets=collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74);
@@ -374,6 +375,20 @@ if(titanWalking){const crushRadius=collisionWorld.bodyRadius+Math.hypot(velocity
  streetProps.crush(player,offsets,crushRadius,collisionWorld,p=>destruction.burst(p,new T.Vector3(velocity.x*.15,5,velocity.z*.15),8,1.5));
  cityLife.crushVehicles(player,offsets,crushRadius,p=>destruction.burst(p,new T.Vector3(velocity.x*.2,6,velocity.z*.2),16,2));
 }
+function clearTitanBuildings(bodyOffsets){
+ if(!titanWalking)return;
+ // Cut actual body contacts at every height, even between scheduled demolition
+ // pulses. Queueing geometry must never leave an invisible wall inside the body.
+ const radius=collisionWorld.bodyRadius+Math.hypot(velocity.x,velocity.z)*dt+1;
+ const direction=new T.Vector3(velocity.x,0,velocity.z).normalize();if(!direction.lengthSq())direction.set(0,0,1);
+ for(const o of bodyOffsets){const p=player.clone().add(o),seen=new Set();
+  for(const solid of collisionWorld.nearby(p.x,p.z,radius,p.y,true)){
+   const b=solid.building;if(!b||b.falling||seen.has(b)||!collisionWorld.sphereSolid(p,radius,solid))continue;
+   seen.add(b);destruction.punch(b,p,direction,'serious',{origin:p.clone(),width:radius,reach:radius,spread:0,sphere:true});
+  }
+ }
+}
+clearTitanBuildings(offsets);
 function clearBodySpace(){
  const seen=new Set(),up=new T.Vector3(0,1,0);
  for(const o of offsets){const p=player.clone().add(o);for(const solid of collisionWorld.nearby(p.x,p.z,collisionWorld.bodyRadius,p.y,true)){
@@ -382,7 +397,7 @@ function clearBodySpace(){
  }}return seen.size>0;
 }
 if(!heroGrapple.held&&collisionWorld.bodyHit(player,offsets)&&(fly||groundRecovery.active||combatReaction)){clearBodySpace();}
-if(!heroGrapple.held&&!collisionWorld.recover(player,offsets)){player.copy(safePosition);hero.orientation.quaternion.copy(safeOrientation);offsets=collisionWorld.bodyOffsets(safeOrientation,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74);collisionWorld.recover(player,offsets);}
+if(!heroGrapple.held&&!collisionWorld.recover(player,offsets,{verticalOnly:titanWalking})&&!titanWalking){player.copy(safePosition);hero.orientation.quaternion.copy(safeOrientation);offsets=collisionWorld.bodyOffsets(safeOrientation,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74);collisionWorld.recover(player,offsets);}
 const movementOrientation=hero.orientation.quaternion.clone();
 if(pendingJump){pendingJump.remaining-=dt;if(!grounded||fly)pendingJump=null;else if(pendingJump.remaining<=0){groundDamage.jumpTakeoff(player,pendingJump.charge);vertical=jumpImpulse(pendingJump.charge);grounded=false;pendingJump=null;jumpCharge=0;}}
 if(!fly)vertical-=24*dt;
@@ -473,6 +488,7 @@ const punchPose=punches.update(dt,player,aimLockPoint()?.sub(player).sub(new T.V
 
 heatVision.setForwardFlight(fly&&!gentleHover&&!slowFlight&&(len>.08||velocity.length()>8)&&velocity.length()>.15,dt);const reticleTop=heatVision.reticleTop.toFixed(3)+'%';if(hud.reticle.style.top!==reticleTop)hud.reticle.style.top=reticleTop;
 avatar.position.copy(player);hero.update(dt,elapsed,{onTitanStep(point){groundDamage.titanStep(point);destruction.plume(point,45,new T.Vector3(0,6,0));audio.punch('normal');},health:health.value,held:heldPose,defense:{phase:defense.phase,age:defense.age,blocking:defense.blocking||!!combatReaction?.blocked,stun:defense.stun},grab:groundRecovery.locked?null:grabPose,heatAim:heatVision.active&&!groundRecovery.locked?heatVision.aim():null,punch:punchPose,flying:fly,levitating:gentleHover||slowFlight,jumpCharge,ambientWind,collisionWorld,groundRecovery:groundRecoveryPose,recovery:flightRecovery,groundMode,moving:fly?(len>.08||velocity.length()>8):len>.08,boost,bank,vx:velocity.x,vy:fly?velocity.y:vertical,vz:velocity.z,grounded,yaw:viewYaw,pitch:viewPitch,groundY:floorAt(player.x,player.z,player.y)});if(heldPose&&heldAnchor){hero.pinHeld(heldAnchor,heldPose.mode);player.copy(avatar.position);}grabs.attach();
+collisionWorld.titanWalking=false;
 collisionWorld.ground=groundHeight;
 multiplayer.syncHolds(hero,grabs.confirmedTargetId,grabs.pose);
 practiceDummy?.update(dt,hero.grappleAnchor(grabs.tackling?'tackle':'grab'),grabs.pose);
@@ -480,15 +496,18 @@ if(grabs.carrying){const victim=grabs.targetId==='practice-dummy'?practiceDummy?
  if(victim&&victim.y<=floorAt(victim.x,victim.z,victim.y+1)+.3){const amount=carryDamage.impact({normal:new T.Vector3(0,1,0)},velocity,{held:true});if(amount&&grabs.confirmedTargetId)combat.hit(grabs.confirmedTargetId,{id:'carry-ground-'+elapsed+'-'+(++carryHitId),kind:'collision',attacker:'player',damage:amount});if(grabs.tackling&&velocity.y<0)grabs.endTackle(true);}}
 lockOn.draw();healthHUD??=createHealthHUD({combat,health,camera,lockOn});healthHUD.update(dt);heatVision.update(dt,!health.dead&&!groundRecovery.locked&&!grabs.active&&!defense.busy&&!combatReaction);hudText(heatButton.querySelector('small'),heatVision.stats.cooldown>0?heatVision.stats.cooldown.toFixed(1)+'s':(heatVision.stats.charge??3).toFixed(1)+'s · HOLD');defenseFX.update(dt,defense);hudText($('parry').querySelector('small'),defense.vulnerable?'OPEN':defense.cooldown>0?defense.cooldown.toFixed(1)+'s':(mobile?'TAP · Q':'COUNTER'));$('parry').setAttribute('aria-disabled',String(defense.cooldown>0||defense.locked));$('block').setAttribute('aria-pressed',String(defense.blocking));
 // Resolve the newly animated pose with the same actor-specific terrain support.
+collisionWorld.titanWalking=titanWalking;
 collisionWorld.ground=hero.character.id==='monolith'?groundDamage.titanField.height:groundHeight;
 collisionWorld.bodyRadius=.28*hero.character.height*hero.character.width/.74;
 const posedOffsets=collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74);
-if(!heroGrapple.held&&!collisionWorld.recover(player,posedOffsets)){hero.orientation.quaternion.copy(movementOrientation);collisionWorld.recover(player,offsets);}
+clearTitanBuildings(posedOffsets);
+if(!heroGrapple.held&&!collisionWorld.recover(player,posedOffsets,{verticalOnly:titanWalking})){hero.orientation.quaternion.copy(movementOrientation);collisionWorld.recover(player,offsets,{verticalOnly:titanWalking});}
 if(!fly)velocity.y=vertical;collisionWorld.confine(player,velocity,collisionWorld.bodyRadius,posedOffsets);if(!fly)vertical=velocity.y;
 avatar.position.copy(player);
 if(!collisionWorld.bodyHit(player,collisionWorld.bodyOffsets(hero.orientation.quaternion,fly||(!grounded&&!titanWalking),hero.character.height,hero.character.width/.74))){safePosition.copy(player);safeOrientation.copy(hero.orientation.quaternion);}
 
 if((shadowTick++%12)===0){sunlight.position.copy(player).addScaledVector(sunDir,500);sunlight.target.position.copy(player);sunlight.target.updateMatrixWorld()}
+collisionWorld.titanWalking=false;
 collisionWorld.ground=groundHeight;
 hudText(hud.mode,airRecovery.ready?'FLIGHT READY':airRecovery.active&&!grounded?'RECOVER IN '+airRecovery.remaining.toFixed(1)+'s':groundRecoveryPose.phase==='rising'?'GETTING UP':groundRecoveryPose.phase==='down'?'RECOVERING':levitating?'LEVITATING':fly?flightMode.toUpperCase()+' FLIGHT':'ON FOOT');hudText(hud.jump,airRecovery.ready?'RECOVER':jumpCharge>0?'CHARGE '+Math.round(jumpCharge*100)+'%':levitating?'RISE':fly?'FLY':'JUMP');
 hudText(hud.altitude,Math.max(0,Math.floor(player.y))+' m');
