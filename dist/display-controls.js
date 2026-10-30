@@ -40,3 +40,6 @@ for (const button of buttons) {
 document.addEventListener('fullscreenchange', update);
 document.addEventListener('webkitfullscreenchange', update);
 openQuick.hidden = allowed;
+
+const build=document.querySelector('meta[name="collateral-build"]')?.content;
+if(build){const label=document.createElement("small");label.textContent="Build: "+build;label.style.cssText="display:block;opacity:.65;margin-top:12px;font-size:11px";document.getElementById("pause-options")?.append(label);}

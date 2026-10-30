@@ -37,7 +37,7 @@ export function createDefense(){
 export function createCombat({onHeroImpact=()=>{},onParry=()=>{}}={}){
  const actors=new Map();let clock=0;const seen=new Map();
  function hit(targetId,attack){
-  const target=actors.get(targetId);if(!target||target.health?.dead||attack.attacker===targetId)return {ignored:true};
+  const target=actors.get(targetId);if(!target||target.health?.dead||attack.attacker===targetId||attack.scenery&&target.character?.()==='monolith')return {ignored:true};
   const key=attack.id!==undefined?targetId+':'+attack.id:null;
   if(key&&seen.has(key))return {ignored:true};if(key)seen.set(key,clock+(attack.continuous?.09:10));
   if(target.forwardHit){target.forwardHit(attack);return {forwarded:true};}
@@ -60,9 +60,9 @@ export function createCombat({onHeroImpact=()=>{},onParry=()=>{}}={}){
   if(attack.punch)onHeroImpact(position,direction,attack.kind,blocking);
   target.onHit?.({...result,blocking,direction,attack});return result;
  }
- function trace(origin,direction,reach,width=0,exclude=null){
+ function trace(origin,direction,reach,width=0,exclude=null,accept=null){
   const ray=new T.Ray(origin,direction),at=new T.Vector3();let closest=null;
-  for(const [id,a]of actors){if(id===exclude||a.active&&!a.active())continue;const p=a.position(),radius=(a.radius?.()||.7)+width,height=a.height?.()||2.2;
+  for(const [id,a]of actors){if(id===exclude||a.active&&!a.active()||accept&&!accept(a))continue;const p=a.position(),radius=(a.radius?.()||.7)+width,height=a.height?.()||2.2;
    const box=new T.Box3(new T.Vector3(p.x-radius,p.y-width,p.z-radius),new T.Vector3(p.x+radius,p.y+height+width,p.z+radius));
    let distance;if(box.containsPoint(origin))distance=0;else if(ray.intersectBox(box,at))distance=origin.distanceTo(at);else continue;
    if(distance>reach)continue;if(!closest||distance<closest.distance)closest={id,distance};}

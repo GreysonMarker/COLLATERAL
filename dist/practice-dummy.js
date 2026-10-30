@@ -50,7 +50,7 @@ export function createPracticeDummy(scene,combat,ground,{world,material=c=>new T
  }
  const target={id:'practice-dummy',kind:'hero',actor:{get cut(){return health.dead;}}};
  function launch(v){launched=true;airTime=0;flying=false;cancelAttack();health.launch();velocity.copy(v);grounded=false;hero.resetCollision();recovery.reset();pose={phase:'none',progress:0,grounded:false};hero.impact({closing:v.length(),impulse:v.clone(),point:position.clone().add(new T.Vector3(0,1.4*hero.character.height,0)),normal:v.clone().normalize()});}
- const unregister=combat.register({id:'practice-dummy',type:'hero',health,active:()=>enabled&&!health.dead,position:()=>position,height:()=>2.2*hero.character.height,radius:()=>.6*hero.character.height,defense,onHit(r){
+ const unregister=combat.register({id:'practice-dummy',type:'hero',character:()=>hero.character.id,health,active:()=>enabled&&!health.dead,position:()=>position,height:()=>2.2*hero.character.height,radius:()=>.6*hero.character.height,defense,onHit(r){
   hits++;if(!r.damageBlocked)cancelAttack();if(r.damageBlocked&&r.distance===0&&!r.velocity)return;
   if(r.velocity||r.distance>0)launch(r.velocity||launchForRange(r.distance,r.direction,24));
  }});

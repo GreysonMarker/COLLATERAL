@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import * as T from './dist/vendor/three.module.js';
+import {createCombat} from './dist/combat-rules.js';
+const combat=createCombat();let launches=0,stuns=0,hits=0;
+const actor={id:'player',type:'hero',character:()=> 'monolith',position:()=>new T.Vector3(),radius:()=>16.8,height:()=>61.6,health:{launch(){launches++;},damage(){return 0;}},defense:{stagger(){stuns++;}},onHit(){hits++;}};
+combat.register(actor);
+const start=new T.Vector3(4,1,0),velocity=new T.Vector3(32,9,0),direction=velocity.clone().normalize();
+// Reproduce the missed path: a moving car already inside the giant's hitbox.
+assert.equal(combat.trace(start,direction,1,1.2).id,'player');
+combat.hit('player',{kind:'projectile',velocity,direction});assert.equal(launches,1,'legacy unclassified world projectile launches giant');
+launches=stuns=hits=0;
+for(let i=0;i<100;i++)assert(combat.hit('player',{kind:'projectile',scenery:true,velocity,direction}).ignored);
+assert.equal(launches+stuns+hits,0,'scenery cannot reach damage/stun/launch receiver');
+assert.equal(combat.trace(start,direction,1,1.2,null,a=>a.character?.()!=='monolith'),null);
+combat.register({id:'other',type:'hero',character:()=> 'original',position:()=>new T.Vector3(5,0,0),onHit(){hits++;}});
+assert.equal(combat.trace(start,new T.Vector3(1,0,0),10,1.2,null,a=>a.character?.()!=='monolith').id,'other','projectile continues to eligible heroes');
+combat.hit('other',{kind:'projectile',scenery:true,velocity,direction});assert.equal(hits,1);
+combat.hit('player',{kind:'normal',punch:true,direction});assert.equal(launches,1,'real hero punches still launch');
+combat.hit('player',{kind:'projectile',attacker:'grapple',velocity,direction});assert.equal(launches,2,'hero throws still launch');
+console.log('Reproduced scenery launch; 100 scenery hits now produce zero launch/stun callbacks. Other heroes, punches and hero throws remain functional.');
