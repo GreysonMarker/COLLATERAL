@@ -261,8 +261,8 @@ collisionWorld.setArenaBounds({minX:-edge+3,maxX:edge-3,minZ:-edge-80,maxZ:edge-
 const destruction=createDestruction(scene,collisionWorld,{concrete,roofmat,mobile,camera,audio});
 const cityLife=createCityLife(scene,mat,mobile,collisionWorld,{onProjectileContact({actor,person,velocity,start,end,attacker}){
  const delta=end.clone().sub(start),distance=delta.length();if(distance<.001||!combat)return null;
- const direction=delta.divideScalar(distance),target=combat.trace(start,direction,distance,person?.4:1.2,attacker);
- if(!target)return null;return {...combat.hit(target.id,{kind:'projectile',attacker,direction,velocity:velocity.clone(),redirect(){}}),defender:target.id};
+ const direction=delta.divideScalar(distance),target=combat.trace(start,direction,distance,person?.4:1.2,attacker,a=>a.character?.()!=='monolith');
+ if(!target)return null;return {...combat.hit(target.id,{kind:'projectile',scenery:true,attacker,direction,velocity:velocity.clone(),redirect(){}}),defender:target.id};
 },onThrowImpact({point,velocity,person,ground,explosion,solid}){
  const speed=velocity.length(),direction=velocity.clone().normalize();
  if(solid?.building&&speed>25)destruction.punch(solid.building,point,direction,person?'quick':'normal');
@@ -272,7 +272,7 @@ const cityLife=createCityLife(scene,mat,mobile,collisionWorld,{onProjectileConta
 }});setGroundMode('walk');
 groundDamage=createGroundDamage(scene,baseGroundHeight,[roadmat,pavement,markmat,grassmat,white,concrete,curbmat],{mobile,emit:destruction.burst,affect:cityLife.shock});
 combat=createCombat({onHeroImpact:(point,direction,kind,blocked)=>{defenseFX.impact(point,direction,kind,blocked);multiplayer?.impact(point,direction,kind,blocked);},onParry:(point,direction)=>{audio.parry();defenseFX.impact(point,direction,'quick',true);}});
-combat.register({id:'player',type:'hero',health,active:()=>!health.dead,position:()=>player,height:()=>2.2*hero.character.height,radius:()=>.6*hero.character.height,defense,onHit(result){
+combat.register({id:'player',type:'hero',character:()=>hero.character.id,health,active:()=>!health.dead,position:()=>player,height:()=>2.2*hero.character.height,radius:()=>.6*hero.character.height,defense,onHit(result){
  if(result.damageBlocked&&result.distance===0&&!result.velocity)return;
  if(airRecovery.active&&!grounded){airRecovery.start();combatReaction??={mode:'launch',blocked:false,age:0,duration:Infinity};}
  punches?.state.cancel();heatVision?.stop();grabs?.reset();cancelJump();
