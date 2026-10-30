@@ -122,6 +122,19 @@ export function createHero(materialFactory) {
   const capeForce=new T.Vector3(),capeTarget=new T.Vector3();
   const facing=new T.Quaternion(),yawQ=new T.Quaternion(),tiltQ=new T.Quaternion(),xAxis=new T.Vector3(1,0,0),yAxis=new T.Vector3(0,1,0),wind=new T.Vector3();
 let flightBlend=0,walkPhase=0,facingHeading=Math.PI,strideBlend=0,runBlend=0,briskBlend=0,hoverTravel=0,groundPoseBlend=0;const bankQ=new T.Quaternion(),zAxis=new T.Vector3(0,0,1);
+  const solePoint=new T.Vector3();let titanFeet=null;
+  function plantTitanSoles(groundY){
+    titanFeet??=legs.flatMap(l=>{const meshes=[];l.ankle.traverse(m=>{if(m.isMesh&&m.name==='monolith-concept')meshes.push(m);});return meshes;});
+    root.updateWorldMatrix(true,true);let lowest=Infinity;
+    for(const mesh of titanFeet){if(!mesh.visible)continue;const points=mesh.geometry.attributes.position;
+      for(let i=0;i<points.count;i++){solePoint.fromBufferAttribute(points,i).applyMatrix4(mesh.matrixWorld);lowest=Math.min(lowest,solePoint.y);}
+    }
+    if(!Number.isFinite(lowest))return;
+    // Only the visual rig is corrected. The actor root and collision capsule stay
+    // on their independent movement path; no accumulated per-frame offset.
+    const verticalScale=rig.parent.matrixWorld.elements[5];
+    if(Math.abs(verticalScale)>.01){rig.position.y+=(groundY+.025-lowest)/verticalScale;root.updateWorldMatrix(true,true);}
+  }
   function update(dt,time,{onTitanStep=null,health=1000,flying,levitating=false,jumpCharge=0,ambientWind=null,collisionWorld=null,groundRecovery=null,recovery=0,groundMode='slow',moving,boost,vx,vy=0,vz,grounded,yaw=0,pitch=0,groundY=.47,bank=0,punch=null,heatAim=null,grab=null,held=null,defense=null}){
     head.quaternion.identity();
     if(flying||held){ragdoll.reset();groundPoseBlend=0;}
@@ -313,6 +326,7 @@ for(const a of arms){a.elbow.rotation.y=T.MathUtils.damp(a.elbow.rotation.y,0,18
       for(const a of arms){const side=a.side<0?'left':'right';poseBone(a.shoulder,p[side+'Shoulder'],p[side+'Elbow'],down,w);poseBone(a.elbow,p[side+'Elbow'],p[side+'Hand'],down,w);}
       for(const l of legs){const side=l.side<0?'left':'right';poseBone(l.hip,p[side+'Hip'],p[side+'Knee'],down,w);poseBone(l.knee,p[side+'Knee'],p[side+'Foot'],down,w);l.ankle.rotation.x=T.MathUtils.lerp(l.ankle.rotation.x,.2,w);}
     }}
+    if(titan&&grounded&&!flying&&!held&&!punch&&!guard&&!ragdoll.active&&(!groundRecovery||groundRecovery.phase==='none'))plantTitanSoles(groundY);
     if(titan&&onTitanStep&&grounded&&!flying&&!held&&!punch&&(!groundRecovery||groundRecovery.phase==='none')&&speed>1&&Math.floor(walkPhase/Math.PI)!==oldStep){root.updateWorldMatrix(true,true);const leg=legs.find(l=>l.side===(Math.floor(walkPhase/Math.PI)%2?1:-1));onTitanStep(leg.ankle.getWorldPosition(new T.Vector3()));}
     capeForce.lerp(capeTarget,1-Math.exp(-dt*12));wind.set(vx,vy,vz);if(cape.mesh.visible)cape.update(dt,time,wind,groundY,ambientWind,thorax,capeForce);
   }
