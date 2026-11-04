@@ -30,4 +30,5 @@ float craterCoverage(vec2 worldXZ){
  float slot=code.x+256.0*code.y-1.0;if(slot<0.0)return 0.0;
  vec2 origin=vec2(mod(slot,craterColumns),floor(slot/craterColumns))*17.0;
  return texture2D(craterDepth,(origin+(worldXZ-tile*16.0)+.5)/craterAtlasSize).r;
-}`;
+}
+`;

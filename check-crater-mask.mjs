@@ -6,3 +6,16 @@ assert.equal(sample(0,0,8,8),255);assert.equal(sample(0,0,0,0),0);assert.equal(s
 for(let i=1;i<1030;i++)mask.update(i%40,Math.floor(i/40),depth);
 assert.equal(mask.uniforms.craterColumns.value,64);assert.equal(sample(0,0,8,8),255);assert.equal(sample(29,25,8,8),255);assert.equal(sample(29,25,0,0),0);
 console.log('Crater mask preserves untouched tile areas, separates neighboring tiles and retains data when growing.');
+// Three's standard and toon fragments start with a #define. Helpers injected
+// before them must end on a fresh line, or the entire material fails to compile.
+const {CRATER_MASK_GLSL}=await import('./dist/crater-mask.js');
+const {ShaderLib,MeshStandardMaterial,Scene}=await import('./dist/vendor/three.module.js');
+const {createGroundDamage}=await import('./dist/ground-damage.js');
+assert(CRATER_MASK_GLSL.endsWith('\n'));
+for(const type of ['standard','toon']){
+ const material=new MeshStandardMaterial();createGroundDamage(new Scene(),()=>0,[material]);
+ const shader={uniforms:{},vertexShader:ShaderLib[type].vertexShader,fragmentShader:ShaderLib[type].fragmentShader};material.onBeforeCompile(shader);
+ assert(!/\S[^\n]*#define/.test(shader.fragmentShader),'preprocessor directives cannot be glued to GLSL statements');
+ assert(shader.fragmentShader.includes('}\n\n#define'),type+' helper/shader separator');
+}
+console.log('Actual standard and toon shader composition preserves preprocessor line boundaries.');
