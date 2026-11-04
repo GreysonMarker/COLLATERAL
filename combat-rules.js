@@ -1,3 +1,4 @@
+import {titanResponse} from './titan-reactions.js';
 import * as T from './vendor/three.module.js';
 import {ATTACK_DAMAGE} from './health.js';
 export const MAX_LAUNCH_SPEED=600;
@@ -35,9 +36,10 @@ export function createDefense(){
 // Shared by the player and future hero/villain controllers. A hit carries its
 // attacker and an optional redirect callback for persistent beams/projectiles.
 export function createCombat({onHeroImpact=()=>{},onParry=()=>{}}={}){
- const actors=new Map();let clock=0;const seen=new Map();
+ const actors=new Map();let clock=0;const seen=new Map(),titanContacts=new Map();
  function hit(targetId,attack){
   const target=actors.get(targetId);if(!target||target.health?.dead||attack.attacker===targetId||attack.scenery&&target.character?.()==='monolith')return {ignored:true};
+  if(target.character?.()==='monolith'&&['grab','tackle'].includes(attack.kind))return {ignored:true,damageBlocked:true};
   const key=attack.id!==undefined?targetId+':'+attack.id:null;
   if(key&&seen.has(key))return {ignored:true};if(key)seen.set(key,clock+(attack.continuous?.09:10));
   if(target.forwardHit){target.forwardHit(attack);return {forwarded:true};}
@@ -46,11 +48,18 @@ export function createCombat({onHeroImpact=()=>{},onParry=()=>{}}={}){
   if(defense?.parrying&&!attack.reflected){
    defense.markSuccess();const attacker=actors.get(attack.attacker),returnDir=attacker?attacker.position().clone().sub(position).normalize():direction.clone().negate();
    onParry(position,returnDir);if(attack.redirect)attack.redirect(returnDir,targetId);
-   else if(attacker)hit(attack.attacker,{...attack,id:undefined,attacker:targetId,direction:returnDir,momentum:attack.momentum?returnDir.clone().multiplyScalar(attack.momentum.length()):undefined,reflected:true});
+   else if(attacker)hit(attack.attacker,{...attack,id:undefined,attacker:targetId,direction:returnDir,origin:position,titanHit:undefined,momentum:attack.momentum?returnDir.clone().multiplyScalar(attack.momentum.length()):undefined,reflected:true});
    if(attack.punch)onHeroImpact(position,direction,attack.kind,true);
    return {parried:true,damageBlocked:true,direction:returnDir};
   }
   const blocking=!!defense?.blocking&&!(attack.kind==='grab'&&attack.reflected);
+  if(target.character?.()==='monolith'){
+   const hit=attack.titanHit|| (attack.origin&&target.titanHit?.(attack.origin,direction,{reach:1000,width:0}));
+   const reaction=titanResponse(attack,hit),result={distance:0,stun:0,mode:'titan',blocking,damageBlocked:blocking,direction,attack,titan:reaction};
+   result.damage=target.health?.damage(blocking?0:(ATTACK_DAMAGE[attack.kind]||0))||0;
+   if(!blocking){target.onHit?.(result);if(attack.punch)onHeroImpact(hit?.point?new T.Vector3().fromArray(hit.point):position,direction,attack.kind,false);}
+   return result;
+  }
   const result=attack.punch?punchResponse(attack.kind,{hero:true,blocking}):{distance:0,stun:blocking?0:attack.kind==='grab'?(attack.reflected?1:.5):.12,mode:'stun',damageBlocked:blocking};
   if(attack.punch&&result.distance>0&&attack.momentum?.lengthSq()>0){result.momentum=attack.momentum.clone().multiplyScalar(blocking?.5:1);result.velocity=addLaunchMomentum(launchForRange(result.distance,direction,24),result.momentum);}
   if(attack.velocity&&!attack.punch){result.velocity=attack.velocity.clone().multiplyScalar(blocking?.5:1);result.mode='launch';}
@@ -62,14 +71,14 @@ export function createCombat({onHeroImpact=()=>{},onParry=()=>{}}={}){
  }
  function trace(origin,direction,reach,width=0,exclude=null,accept=null){
   const ray=new T.Ray(origin,direction),at=new T.Vector3();let closest=null;
-  for(const [id,a]of actors){if(id===exclude||a.active&&!a.active()||accept&&!accept(a))continue;const p=a.position(),radius=(a.radius?.()||.7)+width,height=a.height?.()||2.2;
+  for(const [id,a]of actors){if(id===exclude||a.active&&!a.active()||accept&&!accept(a))continue;if(a.character?.()==='monolith'&&a.titanHit){const hit=a.titanHit(origin,direction,{reach,width});if(hit&&(!closest||hit.distance<closest.distance))closest={id,distance:hit.distance,titanHit:hit};continue;}const p=a.position(),radius=(a.radius?.()||.7)+width,height=a.height?.()||2.2;
    const box=new T.Box3(new T.Vector3(p.x-radius,p.y-width,p.z-radius),new T.Vector3(p.x+radius,p.y+height+width,p.z+radius));
    let distance;if(box.containsPoint(origin))distance=0;else if(ray.intersectBox(box,at))distance=origin.distanceTo(at);else continue;
    if(distance>reach)continue;if(!closest||distance<closest.distance)closest={id,distance};}
   return closest;
  }
  return {register(actor){actors.set(actor.id,actor);return ()=>actors.delete(actor.id);},hit,trace,
-  punch(origin,direction,kind,spec,attacker='player',id){for(const [target,a]of actors){if(target===attacker)continue;const center=a.position().clone().add(new T.Vector3(0,(a.height?.()||2.2)*.5,0)),delta=center.sub(origin),along=delta.dot(direction),width=spec.width+(spec.spread||0)*Math.max(0,along)+(a.radius?.()||.7);if(along<Math.max(-.5,spec.minDistance??-.5)||along>Math.min(spec.reach,spec.maxDistance??spec.reach)||delta.addScaledVector(direction,-along).lengthSq()>width*width)continue;hit(target,{id,kind,punch:true,attacker,direction,origin,momentum:spec.momentum});}},
-  update(dt){clock+=dt;for(const [key,expiry]of seen)if(expiry<=clock)seen.delete(key);},reset(){seen.clear();},get actors(){return actors;}
+  punch(origin,direction,kind,spec,attacker='player',id){for(const [target,a]of actors){if(target===attacker||a.active&&!a.active()||seen.has(target+':'+id))continue;if(a.character?.()==='monolith'&&a.titanHit){const cacheKey=id===undefined?null:target+':'+id;let cached=cacheKey&&titanContacts.get(cacheKey);if(!cached){cached={contact:a.titanHit(origin,direction,spec),expires:clock+10};if(cacheKey)titanContacts.set(cacheKey,cached);}const contact=cached.contact;if(contact&&contact.distance>=Math.max(-.5,spec.minDistance??-.5)&&contact.distance<=Math.min(spec.reach,spec.maxDistance??spec.reach))hit(target,{id,kind,punch:true,attacker,direction,origin,titanHit:contact,momentum:spec.momentum});continue;}const center=a.position().clone().add(new T.Vector3(0,(a.height?.()||2.2)*.5,0)),delta=center.sub(origin),along=delta.dot(direction),width=spec.width+(spec.spread||0)*Math.max(0,along)+(a.radius?.()||.7);if(along<Math.max(-.5,spec.minDistance??-.5)||along>Math.min(spec.reach,spec.maxDistance??spec.reach)||delta.addScaledVector(direction,-along).lengthSq()>width*width)continue;hit(target,{id,kind,punch:true,attacker,direction,origin,momentum:spec.momentum});}},
+  update(dt){clock+=dt;for(const [key,expiry]of seen)if(expiry<=clock)seen.delete(key);for(const [key,v]of titanContacts)if(v.expires<=clock)titanContacts.delete(key);},reset(){seen.clear();titanContacts.clear();},get actors(){return actors;}
  };
 }

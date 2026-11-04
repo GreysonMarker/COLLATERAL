@@ -1,3 +1,4 @@
+import {moveTitan} from './titan-movement.js';
 import {createDefenseFX} from './defense-fx.js';
 import {createCombatAI} from './combat-ai.js';
 import {createPunches} from './punches.js';
@@ -23,7 +24,7 @@ export function createPracticeDummy(scene,combat,ground,{world,material=c=>new T
  const heat=arena?createHeatVision(scene,{camera:new T.PerspectiveCamera(),hero,destruction,cityLife:arena.cityLife,groundHeight:ground,collisionWorld:world,combat,actorId:'practice-dummy',targetPoint:()=>aimPoint.clone()}):null;
  function cancelAttack(){punches?.state.cancel();heat?.stop();laserIntent=false;}
  function think(dt){
-  const enemy=getOpponent();const free=fighting&&enemy&&enemy.alive&&!held&&!health.dead&&!launched&&!recovery.locked&&defense.stun<=0;
+  const enemy=getOpponent();const free=fighting&&enemy&&enemy.alive&&!held&&!health.dead&&!hero.titanLocked&&!launched&&!recovery.locked&&defense.stun<=0;
   if(!free){defense.hold(false);cancelAttack();if(fighting&&enemy&&!enemy.alive&&!held&&!launched)velocity.multiplyScalar(Math.exp(-dt*5));return;}
   const delta=enemy.position.clone().sub(position),distance=delta.length();
   decision=brain.update(dt,{...enemy,distance,attacking:!!enemy.attacking},{busy:!!punches?.state.current||defense.locked,canAttack:kind=>!!punches?.state.canPress(kind)});
@@ -50,11 +51,12 @@ export function createPracticeDummy(scene,combat,ground,{world,material=c=>new T
  }
  const target={id:'practice-dummy',kind:'hero',actor:{get cut(){return health.dead;}}};
  function launch(v){launched=true;airTime=0;flying=false;cancelAttack();health.launch();velocity.copy(v);grounded=false;hero.resetCollision();recovery.reset();pose={phase:'none',progress:0,grounded:false};hero.impact({closing:v.length(),impulse:v.clone(),point:position.clone().add(new T.Vector3(0,1.4*hero.character.height,0)),normal:v.clone().normalize()});}
- const unregister=combat.register({id:'practice-dummy',type:'hero',character:()=>hero.character.id,health,active:()=>enabled&&!health.dead,position:()=>position,height:()=>2.2*hero.character.height,radius:()=>.6*hero.character.height,defense,onHit(r){
+ const unregister=combat.register({id:'practice-dummy',type:'hero',character:()=>hero.character.id,titanHit:hero.titanHit,health,active:()=>enabled&&!health.dead,position:()=>position,height:()=>2.2*hero.character.height,radius:()=>.6*hero.character.height,defense,onHit(r){
+  if(r.titan){hits++;hero.reactTitan(r.titan);launched=false;recovery.reset();hero.resetCollision();if(r.titan.special){flying=false;velocity.set(0,0,0);cancelAttack();}return;}
   hits++;if(!r.damageBlocked)cancelAttack();if(r.damageBlocked&&r.distance===0&&!r.velocity)return;
   if(r.velocity||r.distance>0)launch(r.velocity||launchForRange(r.distance,r.direction,24));
  }});
- function reset(p=home){defenseFX?.reset();brain.reset();punches?.reset();heat?.reset();flying=launched=false;airTime=stuck=0;health.reset();held=false;position.copy(p);position.y=world?world.floorAt(p.x,p.z,p.y+3,true):ground(p.x,p.z);home.copy(position);velocity.set(0,0,0);hero.resetCollision();recovery.reset();defense.reset();grounded=true;pose={phase:'none',progress:0,grounded:true};}
+ function reset(p=home){hero.resetTitan();defenseFX?.reset();brain.reset();punches?.reset();heat?.reset();flying=launched=false;airTime=stuck=0;health.reset();held=false;position.copy(p);position.y=hero.character.id==='monolith'?(arena?.baseGroundHeight||ground)(p.x,p.z):world?world.floorAt(p.x,p.z,p.y+3,true):ground(p.x,p.z);home.copy(position);velocity.set(0,0,0);hero.resetCollision();recovery.reset();defense.reset();grounded=true;pose={phase:'none',progress:0,grounded:true};}
  function update(dt,hand,carry=null){if(!enabled)return;if(health.update(dt)){reset();return;}time+=dt;defense.update(dt);if(health.dead)flying=false;
   if(launched&&!held&&!grounded){airTime+=dt;if(fighting&&airTime>=2&&!health.dead){launched=false;flying=true;defense.clearStun();hero.resetCollision();recovery.reset();pose={phase:'none',progress:0,grounded:false};}}
   if(grounded&&launched){launched=false;airTime=0;}
@@ -63,7 +65,12 @@ export function createPracticeDummy(scene,combat,ground,{world,material=c=>new T
   if(world)world.bodyRadius=.28*height*hero.character.width/.74;
   try{
    if(held){position.copy(hand).add(new T.Vector3(0,-1.65*height,0));velocity.set(0,0,0);grounded=false;}
-   else if(world){
+   else if(hero.character.id==='monolith'&&!flying){
+    position.add(hero.consumeTitanMotion());if(hero.titanLocked)velocity.set(0,0,0);
+    const base=arena?.baseGroundHeight||ground;if(!grounded)velocity.y-=24*dt;
+    grounded=moveTitan(position,velocity,velocity.y,dt,{grounded,ground:base,confine:world?(p,v)=>world.confine(p,v,.28*height,world.bodyOffsets(new T.Quaternion(),false,height)):null}).grounded;
+    recovery.reset();pose={phase:'none',progress:0,grounded};
+   }else if(world){
     let offsets=world.bodyOffsets(hero.orientation.quaternion,!grounded,height,hero.character.width/.74);
     world.recover(position,offsets);if(!flying)velocity.y-=24*dt;
     if(!flying&&(!grounded||recovery.active))coast(velocity,0,0,dt);
@@ -87,12 +94,12 @@ export function createPracticeDummy(scene,combat,ground,{world,material=c=>new T
     if(recovery.locked)velocity.x=velocity.z=0;
    }else{velocity.y-=24*dt;position.addScaledVector(velocity,dt);if(position.y<=ground(position.x,position.z)){position.y=ground(position.x,position.z);velocity.y=0;velocity.x*=Math.exp(-dt*.85);velocity.z*=Math.exp(-dt*.85);grounded=true;}}
    const punch=punches?.update(dt,position);heat&&(heat.held=laserIntent&&!health.dead&&!held);heat?.update(dt,fighting&&!held&&!health.dead&&!defense.busy&&!launched&&!punch);
-   hero.update(dt,time,{health:health.value,punch,heatAim:heat?.active?aimDirection:null,held:held&&carry?{...carry,mode:carry.tackle?'tackle':'grab'}:null,flying,moving:fighting&&moving,boost:fast,grounded,vx:velocity.x,vy:velocity.y,vz:velocity.z,yaw:heading,pitch,groundMode:'walk',groundY:world?world.floorAt(position.x,position.z,position.y+.3,true):ground(position.x,position.z),collisionWorld:world,groundRecovery:pose,defense:{phase:defense.phase,age:defense.age,blocking:defense.blocking,stun:defense.stun}});
+   hero.update(dt,time,{health:health.value,punch,heatAim:heat?.active?aimDirection:null,held:held&&carry?{...carry,mode:carry.tackle?'tackle':'grab'}:null,flying,moving:fighting&&moving,boost:fast,grounded,vx:velocity.x,vy:velocity.y,vz:velocity.z,yaw:heading,pitch,groundMode:'walk',groundY:hero.character.id==='monolith'?(arena?.baseGroundHeight||ground)(position.x,position.z):world?world.floorAt(position.x,position.z,position.y+.3,true):ground(position.x,position.z),collisionWorld:world,groundRecovery:pose,defense:{phase:defense.phase,age:defense.age,blocking:defense.blocking,stun:defense.stun}});
    defenseFX?.update(dt,defense);
    if(held&&carry)hero.pinHeld(hand,carry.tackle?'tackle':'grab');
-   if(world&&!held){const offsets=world.bodyOffsets(hero.orientation.quaternion,!grounded,height,hero.character.width/.74);world.recover(position,offsets);}
+   if(world&&!held&&hero.character.id!=='monolith'){const offsets=world.bodyOffsets(hero.orientation.quaternion,!grounded,height,hero.character.width/.74);world.recover(position,offsets);}
    if(world)world.confine(position,velocity,world.bodyRadius,world.bodyOffsets(hero.orientation.quaternion,!grounded,height,hero.character.width/.74));
   }finally{if(world)world.bodyRadius=previousRadius;}
  }
- return {root,hero,health,reset,update,get fighting(){return fighting;},setCombat(value){fighting=!!value&&!!arena;brain.reset();cancelAttack();punches?.reset();heat?.reset();defense.reset();if(!fighting)flying=false;return fighting;},get airborne(){return !grounded;},get hits(){return hits;},get state(){return {controlledFlight:fighting&&flying&&!grounded&&!held&&!health.dead&&!launched&&!recovery.locked&&!defense.busy,fighting,flying,fast,launched,airTime,attack:punches?.state.current?.kind||null,blocking:defense.blocking,grounded,held,velocity:velocity.toArray(),recovery:pose.phase,body:hero.collisionFeedback};},setCharacter(id){hero.setAppearance(id);reset(position.clone());},acquire(mode='grab'){if(held||!enabled||health.dead)return null;const result=combat.hit('practice-dummy',{kind:mode==='tackle'?'tackle':'grab',attacker:'player',direction:position.clone().sub(combat.actors.get('player')?.position()||position).normalize()});if(result.parried||result.damageBlocked)return null;cancelAttack();flying=false;health.launch();held=true;velocity.set(0,0,0);hero.resetCollision();recovery.reset();return target;},release(v){held=false;if(v)launch(v);},dispose(){defenseFX?.dispose();cancelAttack();punches?.reset();enabled=false;unregister();root.removeFromParent();}};
+ return {root,hero,health,reset,update,get fighting(){return fighting;},setCombat(value){fighting=!!value&&!!arena;brain.reset();cancelAttack();punches?.reset();heat?.reset();defense.reset();if(!fighting)flying=false;return fighting;},get airborne(){return !grounded;},get hits(){return hits;},get state(){return {controlledFlight:fighting&&flying&&!grounded&&!held&&!health.dead&&!hero.titanLocked&&!launched&&!recovery.locked&&!defense.busy,fighting,flying,fast,launched,airTime,attack:punches?.state.current?.kind||null,blocking:defense.blocking,grounded,held,velocity:velocity.toArray(),recovery:pose.phase,body:hero.collisionFeedback};},setCharacter(id){hero.setAppearance(id);reset(position.clone());},acquire(mode='grab'){if(held||!enabled||health.dead||hero.character.id==='monolith')return null;const result=combat.hit('practice-dummy',{kind:mode==='tackle'?'tackle':'grab',attacker:'player',direction:position.clone().sub(combat.actors.get('player')?.position()||position).normalize()});if(result.ignored||result.parried||result.damageBlocked)return null;cancelAttack();flying=false;health.launch();held=true;velocity.set(0,0,0);hero.resetCollision();recovery.reset();return target;},release(v){held=false;if(v)launch(v);},dispose(){defenseFX?.dispose();cancelAttack();punches?.reset();enabled=false;unregister();root.removeFromParent();}};
 }

@@ -1,4 +1,7 @@
-export function validSnapshot(s){return !!s&&(s.health===undefined||(Number.isFinite(s.health)&&s.health>=0&&s.health<=1000))&&['p','v'].every(k=>Array.isArray(s[k])&&s[k].length===3&&s[k].every(n=>Number.isFinite(n)&&Math.abs(n)<=100000))&&!!s.pose&&typeof s.pose==='object'&&['yaw','pitch'].every(k=>s.pose[k]===undefined||Number.isFinite(s.pose[k]))&&typeof s.character==='string';}
+import {TITAN_ZONES} from './titan-reactions.js';
+const titanZoneIds=new Set(TITAN_ZONES.map(z=>z.id));
+function validTitanReaction(r){return r==null||!!r&&titanZoneIds.has(r.zone)&&Number.isInteger(r.direction)&&r.direction>=0&&r.direction<5&&Number.isFinite(r.age)&&r.age>=0&&r.age<=3&&Number.isFinite(r.duration)&&r.duration>0&&r.duration<=3&&Number.isFinite(r.distance)&&r.distance>=0&&r.distance<=14&&Array.isArray(r.worldDirection)&&r.worldDirection.length===3&&r.worldDirection.every(n=>Number.isFinite(n)&&Math.abs(n)<=1.01);}
+export function validSnapshot(s){return !!s&&(s.health===undefined||(Number.isFinite(s.health)&&s.health>=0&&s.health<=1000))&&['p','v'].every(k=>Array.isArray(s[k])&&s[k].length===3&&s[k].every(n=>Number.isFinite(n)&&Math.abs(n)<=100000))&&!!s.pose&&typeof s.pose==='object'&&['yaw','pitch'].every(k=>s.pose[k]===undefined||Number.isFinite(s.pose[k]))&&typeof s.character==='string'&&validTitanReaction(s.titanReaction); }
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 // Timestamped motion history, with a small adaptive jitter buffer. Action state
 // always comes from the latest packet, rather than waiting in the motion buffer.

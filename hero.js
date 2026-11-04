@@ -1,3 +1,5 @@
+import {createTitanHitZones} from './titan-hit-zones.js';
+import {createTitanReactions} from './titan-reactions.js';
 import {desktopVisuals,finishCharacterMaterial} from './visual-polish.js';
 import {createBattleDamage} from './battle-damage.js';
 import {defensePose} from './defense-pose.js';
@@ -91,7 +93,10 @@ export function createHero(materialFactory) {
   const upperBody=group(rig,0,1.15,0);for(const child of [...rig.children])if(child!==upperBody&&child.position.y>1.15){rig.remove(child);upperBody.add(child);child.position.y-=1.15;}
   // Two spine pivots spread the bend through the waist and upper back.
   const thorax=group(upperBody,0,.40,0);for(const child of [...upperBody.children])if(child!==thorax&&child.position.y>.40){upperBody.remove(child);thorax.add(child);child.position.y-=.40;}
-  const fallMotion=createFallMotion(),ragdoll=createRagdoll();
+  const fallMotion=createFallMotion(),ragdoll=createRagdoll(),titanReactions=createTitanReactions();
+  const titanZones=createTitanHitZones({root,rig,head,upperBody,thorax,arms,legs,meshes:all});
+  let titanBasePose=null;
+  const titanBones=[rig,upperBody,thorax,neck,...arms.flatMap(a=>[a.shoulder,a.elbow]),...legs.flatMap(l=>[l.hip,l.knee,l.ankle])];
   const ragBones=[upperBody,thorax,neck,...arms.flatMap(a=>[a.shoulder,a.elbow]),...legs.flatMap(l=>[l.hip,l.knee,l.ankle])];let savedAnimation=null;
   function snapshot(){root.updateWorldMatrix(true,true);const p={pelvis:upperBody.getWorldPosition(new T.Vector3()),chest:thorax.getWorldPosition(new T.Vector3()),neck:neck.getWorldPosition(new T.Vector3()),head:head.localToWorld(new T.Vector3(0,.10,0))};
    for(const a of arms){const side=a.side<0?'left':'right';p[side+'Shoulder']=a.shoulder.getWorldPosition(new T.Vector3());p[side+'Elbow']=a.elbow.getWorldPosition(new T.Vector3());p[side+'Hand']=a.elbow.localToWorld(new T.Vector3(0,-.36,0));}
@@ -135,13 +140,15 @@ let flightBlend=0,walkPhase=0,facingHeading=Math.PI,strideBlend=0,runBlend=0,bri
     const verticalScale=rig.parent.matrixWorld.elements[5];
     if(Math.abs(verticalScale)>.01){rig.position.y+=(groundY+.025-lowest)/verticalScale;root.updateWorldMatrix(true,true);}
   }
-  function update(dt,time,{onTitanStep=null,health=1000,flying,levitating=false,jumpCharge=0,ambientWind=null,collisionWorld=null,groundRecovery=null,recovery=0,groundMode='slow',moving,boost,vx,vy=0,vz,grounded,yaw=0,pitch=0,groundY=.47,bank=0,punch=null,heatAim=null,grab=null,held=null,defense=null}){
+  function update(dt,time,{titanReaction=undefined,onTitanStep=null,health=1000,flying,levitating=false,jumpCharge=0,ambientWind=null,collisionWorld=null,groundRecovery=null,recovery=0,groundMode='slow',moving,boost,vx,vy=0,vz,grounded,yaw=0,pitch=0,groundY=.47,bank=0,punch=null,heatAim=null,grab=null,held=null,defense=null}){
+    if(titanBasePose){titanBones.forEach((b,i)=>{b.position.copy(titanBasePose[i].p);b.quaternion.copy(titanBasePose[i].q);});titanBasePose=null;}
+    if(appearance.style.id==='monolith'){ragdoll.reset();groundPoseBlend=0;groundRecovery=null;held=null;if(titanReaction!==undefined)titanReactions.sync(titanReaction);}
     head.quaternion.identity();
     if(flying||held){ragdoll.reset();groundPoseBlend=0;}
     if(savedAnimation){for(let i=0;i<ragBones.length;i++){ragBones[i].position.copy(savedAnimation[i].p);ragBones[i].quaternion.copy(savedAnimation[i].q);}savedAnimation=null;}
     battleDamage.setHealth(health);battleDamage.setSkin(appearance.style.colors[6]);
     const fallScale=appearance.style.id==='monolith'?Math.sqrt(appearance.style.height):1;
-    const fall=fallMotion.update(dt,time,{flying,grounded,vx:vx/fallScale,vy:vy/fallScale,vz:vz/fallScale,heading:facingHeading});
+    const fall=fallMotion.update(dt,time,{flying,grounded:appearance.style.id==='monolith'?true:grounded,vx:vx/fallScale,vy:vy/fallScale,vz:vz/fallScale,heading:facingHeading});
     const speed=Math.hypot(vx,vz);strideBlend=T.MathUtils.damp(strideBlend,Math.min(1,speed/2.0),10,dt);const stride=strideBlend;flightBlend=T.MathUtils.damp(flightBlend,flying?1:0,7,dt);
     runBlend=T.MathUtils.damp(runBlend,!flying&&boost?1:0,7,dt);
     briskBlend=T.MathUtils.damp(briskBlend,!flying&&groundMode!=='slow'?1:0,7,dt);
@@ -149,7 +156,7 @@ let flightBlend=0,walkPhase=0,facingHeading=Math.PI,strideBlend=0,runBlend=0,bri
     walkPhase+=titan?dt*Math.min(4.5,speed/9):dt*T.MathUtils.lerp(gaitRate(speed,0)+briskBlend*.55,Math.PI*2*(1.45+Math.min(speed,12)*.045),runBlend)*Math.min(1,speed/.6);
     const travelSpeed=Math.hypot(vx,vy,vz);const cruising=flying&&!levitating&&moving&&travelSpeed>.15;
     const hovering=flying&&!cruising;hoverTravel=T.MathUtils.damp(hoverTravel,hovering?Math.min(1,speed/8):0,6,dt);
-    const heading=speed>.15?Math.atan2(vx,vz):facingHeading;facingHeading=heading;
+    const heading=titanReactions.active?facingHeading:speed>.15?Math.atan2(vx,vz):facingHeading;facingHeading=heading;
     if(heading!==null){yawQ.setFromAxisAngle(yAxis,heading);tiltQ.setFromAxisAngle(xAxis,cruising?Math.atan2(speed,vy):flying?0:fall.pose.pitch*fall.blend);facing.copy(yawQ).multiply(tiltQ);if(flying){bankQ.setFromAxisAngle(yAxis,bank*2.5);facing.multiply(bankQ);}else{bankQ.setFromAxisAngle(yAxis,fall.pose.twist*fall.blend);facing.multiply(bankQ);bankQ.setFromAxisAngle(zAxis,fall.pose.roll*fall.blend);facing.multiply(bankQ);}orientation.quaternion.slerp(facing,1-Math.exp(-dt*(flying&&recovery>0?T.MathUtils.lerp(2.5,11,1-Math.min(1,recovery/1.15)):!flying&&!grounded?8:11)));}
     rig.position.y=-1.2+(flying?(hovering?.045*Math.sin(time*1.8):.025*Math.sin(time*2.8)):T.MathUtils.lerp(-.005+Math.cos(walkPhase*2)*(.009+briskBlend*.005),-.04+Math.cos(walkPhase*2)*.054,runBlend)*stride);
     rig.position.y-=jumpCharge*.22;
@@ -321,12 +328,22 @@ for(const a of arms){a.elbow.rotation.y=T.MathUtils.damp(a.elbow.rotation.y,0,18
       for(const a of arms){const hand=tackle?orientation.localToWorld(new T.Vector3(a.side*.38,.35,.50)):grip.clone().add(new T.Vector3(a.side*.10,struggle*a.side*.025,.10).applyAxisAngle(yAxis,heading));
         plantArm(a,hand,orientation.localToWorld(new T.Vector3(a.side*.72,.42,.35)),1,.006);}
     }
-    if(ragdoll.active&&!guard&&!held){const targets=snapshot(),result=ragdoll.update(dt,targets,root.position,collisionWorld,{flying,grounded,vx,vy,vz,groundRecovery});if(result.points){savedAnimation=ragBones.map(b=>({p:b.position.clone(),q:b.quaternion.clone()}));const p=result.points,w=result.weight,up=new T.Vector3(0,1,0),down=new T.Vector3(0,-1,0);
+    if(!titan&&ragdoll.active&&!guard&&!held){const targets=snapshot(),result=ragdoll.update(dt,targets,root.position,collisionWorld,{flying,grounded,vx,vy,vz,groundRecovery});if(result.points){savedAnimation=ragBones.map(b=>({p:b.position.clone(),q:b.quaternion.clone()}));const p=result.points,w=result.weight,up=new T.Vector3(0,1,0),down=new T.Vector3(0,-1,0);
       poseBone(upperBody,p.pelvis,p.chest,up,w);poseBone(thorax,p.chest,p.neck,up,w);poseBone(neck,p.neck,p.head,up,w);
       for(const a of arms){const side=a.side<0?'left':'right';poseBone(a.shoulder,p[side+'Shoulder'],p[side+'Elbow'],down,w);poseBone(a.elbow,p[side+'Elbow'],p[side+'Hand'],down,w);}
       for(const l of legs){const side=l.side<0?'left':'right';poseBone(l.hip,p[side+'Hip'],p[side+'Knee'],down,w);poseBone(l.knee,p[side+'Knee'],p[side+'Foot'],down,w);l.ankle.rotation.x=T.MathUtils.lerp(l.ankle.rotation.x,.2,w);}
     }}
-    if(titan&&grounded&&!flying&&!held&&!punch&&!guard&&!ragdoll.active&&(!groundRecovery||groundRecovery.phase==='none'))plantTitanSoles(groundY);
+    let titanLift=0;
+    if(titan){
+      const pose=titanReactions.update(dt);titanLift=pose?.lift||0;
+      if(pose){titanBasePose=titanBones.map(b=>({p:b.position.clone(),q:b.quaternion.clone()}));
+       const apply=(bone,angles)=>{if(angles)bone.quaternion.multiply(new T.Quaternion().setFromEuler(new T.Euler(...angles)));};
+       apply(rig,pose.rig);apply(upperBody,pose.waist);apply(thorax,pose.chest);apply(neck,pose.neck);rig.position.y-=pose.drop;
+       for(const a of arms){apply(a.shoulder,pose.arms[a.side]);apply(a.elbow,pose.arms['elbow'+a.side]);}
+       for(const l of legs){apply(l.hip,pose.legs[l.side]);apply(l.knee,pose.legs['knee'+l.side]);l.ankle.rotation.x=-l.hip.rotation.x-l.knee.rotation.x;}
+      }
+    }
+    if(titan&&grounded&&!flying&&!held&&!punch&&!guard&&!ragdoll.active&&(!groundRecovery||groundRecovery.phase==='none'))plantTitanSoles(groundY+titanLift);
     if(titan&&onTitanStep&&grounded&&!flying&&!held&&!punch&&(!groundRecovery||groundRecovery.phase==='none')&&speed>1&&Math.floor(walkPhase/Math.PI)!==oldStep){root.updateWorldMatrix(true,true);const leg=legs.find(l=>l.side===(Math.floor(walkPhase/Math.PI)%2?1:-1));onTitanStep(leg.ankle.getWorldPosition(new T.Vector3()));}
     capeForce.lerp(capeTarget,1-Math.exp(-dt*12));wind.set(vx,vy,vz);if(cape.mesh.visible)cape.update(dt,time,wind,groundY,ambientWind,thorax,capeForce);
   }
@@ -334,5 +351,5 @@ for(const a of arms){a.elbow.rotation.y=T.MathUtils.damp(a.elbow.rotation.y,0,18
   return {root,update,get damageStage(){return battleDamage.stage;},
     grappleAnchor(mode='grab'){root.updateWorldMatrix(true,true);return mode==='tackle'?arms.find(a=>a.side===1).shoulder.localToWorld(new T.Vector3(0,.02,.20)):this.grabHand();},
     pinHeld(anchor,mode='grab'){root.updateWorldMatrix(true,true);const contact=mode==='tackle'?thorax.localToWorld(new T.Vector3(.08,.10,.22)):neck.localToWorld(new T.Vector3(0,-.04,.10));root.position.add(anchor.clone().sub(contact));root.updateWorldMatrix(true,true);},
-    grabHand(){root.updateWorldMatrix(true,true);return arms.find(a=>a.side===1).elbow.localToWorld(new T.Vector3(0,-.36,.01));},setAppearance:appearance.setAppearance,get character(){return appearance.style;},eyePositions(){root.updateMatrixWorld(true);return [-1,1].map(side=>head.localToWorld(new T.Vector3(side*.084,.066,.235)));},impact:hit=>ragdoll.trigger(hit),get collisionFeedback(){return ragdoll.feedback;},resetCollision(){ragdoll.reset();groundPoseBlend=0;},meshes:all,cape,orientation};
+    grabHand(){root.updateWorldMatrix(true,true);return arms.find(a=>a.side===1).elbow.localToWorld(new T.Vector3(0,-.36,.01));},setAppearance(id){titanReactions.reset();ragdoll.reset();return appearance.setAppearance(id);},titanHit:(o,d,s)=>titanZones.hit(o,d,s),titanZoneCenters:()=>titanZones.centers(),reactTitan:r=>titanReactions.trigger(r),get titanReaction(){return titanReactions.state;},get titanLocked(){return titanReactions.locked;},consumeTitanMotion:()=>titanReactions.consumeMotion(),resetTitan:()=>titanReactions.reset(),get character(){return appearance.style;},eyePositions(){root.updateMatrixWorld(true);return [-1,1].map(side=>head.localToWorld(new T.Vector3(side*.084,.066,.235)));},impact:hit=>{if(appearance.style.id!=='monolith')ragdoll.trigger(hit);},get collisionFeedback(){return ragdoll.feedback;},resetCollision(){ragdoll.reset();groundPoseBlend=0;},meshes:all,cape,orientation};
 }
