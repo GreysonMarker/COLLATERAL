@@ -36,6 +36,10 @@ export function titanResponse(attack,hit){
  return {zone:zone.id,direction:hit?.direction??2,kind,special,duration:special?2.8:serious?1.35:kind==='quick'?.48:.72,
   distance:special?(zone.type==='head'?14:10):0,worldDirection:attack.direction?.toArray()||[0,0,-1]};
 }
+// Contact timing, body delay and load vary with the struck anatomy. A shin
+// yields at the knee, an arm folds locally, while the collar transmits a stiff
+// shoulder recoil; they must not all read as the same torso flinch.
+const REGION_TIMING={head:[.09,.23,.70],collar:[.11,.27,.77],shoulder:[.13,.29,.80],arm:[.12,.26,.72],forearm:[.10,.30,.68],chest:[.14,.26,.78],core:[.16,.30,.84],ribs:[.13,.28,.79],abdomen:[.17,.32,.86],waist:[.18,.33,.84],pelvis:[.19,.35,.87],thigh:[.16,.31,.80],knee:[.12,.30,.77],shin:[.10,.34,.73]};
 const smooth=x=>{x=T.MathUtils.clamp(x,0,1);return x*x*(3-2*x);};
 function pulse(t,delay,peak,end){if(t<delay||t>=end)return 0;return t<peak?smooth((t-delay)/(peak-delay)):1-smooth((t-peak)/(end-peak));}
 // Each region selects an anatomical choreography; five direction keys change
@@ -44,7 +48,7 @@ export function sampleTitanReaction(state,age){
  const z=TITAN_ZONES.find(z=>z.id===state.zone);if(!z)return null;
  const t=age/state.duration,a=(state.direction-2)*Math.PI/4,side=z.side||(-Math.sign(Math.sin(a))||1);
  const x=-Math.sin(a),push=(z.face==='front'?-1:1)*Math.cos(a),strength=state.special?1.3:state.kind==='serious'?1:state.kind==='normal'?.27:.13;
- const contact=pulse(t,0,.12,.72)*strength,body=pulse(t,.045,.25,1)*strength,settle=pulse(t,.32,.58,1)*strength;
+ const timing=REGION_TIMING[z.type],contact=pulse(t,0,timing[0],timing[2])*strength,body=pulse(t,.045,timing[1],1)*strength,settle=pulse(t,.32,.58,1)*strength;
  const p={rig:[0,0,0],waist:[0,0,0],chest:[0,0,0],neck:[0,0,0],arms:{},legs:{},drop:0,lift:0};
  const limb=(map,s)=>map[s]??=[0,0,0];
  p.waist=[push*.07*body,z.side*.025*body,-x*.07*body];
@@ -58,6 +62,8 @@ export function sampleTitanReaction(state,age){
   p.waist=[-push*bend*body,(-x*.13+z.side*push*.13)*body,-x*.20*body];
   p.chest=[push*(low?.07:.20)*contact,(-x*.16+z.side*push*.10)*contact,-x*.14*contact];
   p.neck=[-push*.17*body,x*.18*body,z.side*.06*body];p.drop=.035*body;
+  if(z.type==='collar'){p.arms[side]=[push*.23*contact,-x*.12*contact,side*.16*body];p.waist=p.waist.map(v=>v*.65);}
+  if(z.type==='abdomen'){p.arms[-side]=[-.28*body,side*.12*body,-side*.08*body];p.drop=.065*body;}
  }else if(['shoulder','arm','forearm'].includes(z.type)){
   const k=z.type==='forearm'?1:z.type==='arm'?.7:.45;
   p.arms[side]=[push*.43*contact,-x*.22*contact,side*.30*contact];
@@ -72,7 +78,8 @@ export function sampleTitanReaction(state,age){
  }else{
   const low=z.type==='shin'||z.type==='knee';
   p.legs[side]=[push*(low?.15:.28)*contact,0,-x*.16*contact];
-  p.legs['knee'+side]=[(low?.42:.22)*contact,0,0];
+  p.legs['knee'+side]=[(z.type==='shin'?.30:z.type==='knee'?.42:.22)*contact,0,0];
+  if(z.type==='shin')p.legs[side][0]+=push*.14*contact;
   p.legs[-side]=[-push*.12*body,0,-side*.08*body];
   p.waist=[-push*.16*body,side*.10*contact,-side*.12*body];p.drop=.045*body;
  }
