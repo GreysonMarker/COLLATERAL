@@ -51,7 +51,7 @@ export async function rooms(request,env){
   if(action!=='sync')fail('Unknown action',404);
   if(!b.state||!Array.isArray(b.state.p)||b.state.p.length!==3||b.state.p.some(n=>!Number.isFinite(n)||Math.abs(n)>100000)||!Array.isArray(b.state.v)||b.state.v.length!==3||!finiteTree(b.state)||JSON.stringify(b.state).length>5000)fail('Invalid player state');
   if(!Array.isArray(b.events)||b.events.length>100)fail('Too many events');
-  if(b.state.v.some(n=>!Number.isFinite(n)||Math.abs(n)>5000)||!['original','obsidian','gold','violet','lanky','teal'].includes(b.state.character))fail('Invalid hero state');
+  if(b.state.v.some(n=>!Number.isFinite(n)||Math.abs(n)>5000)||!['original','obsidian','gold','violet','lanky','teal','monolith','pale-king','ghostshot'].includes(b.state.character))fail('Invalid hero state');
   if(b.state.pose&&Object.values(b.state.pose).some(v=>!['number','boolean','string'].includes(typeof v)))fail('Invalid pose');
   if(b.state.punch&&(!['quick','normal','serious'].includes(b.state.punch.kind)||!Array.isArray(b.state.punch.direction)))fail('Invalid punch pose');
 

@@ -31,7 +31,7 @@ export function createHeatVision(scene,{camera,hero,destruction,cityLife,groundH
   const heroContact=combat?.trace(center,dir,reach,.18,actorId);let reflection=null;
   if(heroContact){reach=heroContact.distance;if(!combat.actors.get(heroContact.id)?.forwardHit&&combat.actors.get(heroContact.id)?.defense?.parrying)reflection=dir.clone().negate();
    // One beam hit per 0.1s; a parry reroutes this tick at the shooter.
-   tick+=fired;while(tick>=.1-1e-8){tick=Math.max(0,tick-.1);combat.hit(heroContact.id,{id:'heat-'+actorId+'-'+stats.ticks++,continuous:true,kind:'heat',attacker:actorId,direction:dir,redirect(direction){reflection=direction;combat.hit(actorId,{kind:"heat",attacker:heroContact.id,direction,reflected:true});}});}
+   tick+=fired;while(tick>=.1-1e-8){tick=Math.max(0,tick-.1);combat.hit(heroContact.id,{id:'heat-'+actorId+'-'+stats.ticks++,continuous:true,kind:'heat',attacker:actorId,origin:center,titanHit:heroContact.titanHit,direction:dir,redirect(direction){reflection=direction;combat.hit(actorId,{kind:"heat",attacker:heroContact.id,direction,reflected:true});}});}
   }
   const end=center.clone().addScaledVector(dir,reach);
   if(reflection){const back=center.clone().sub(end),length=back.length();for(let i=0;i<2;i++){const mesh=reflectedBeams[i];mesh.visible=true;mesh.position.copy(end).lerp(center,.5);mesh.position.x+=(i?1:-1)*.045;mesh.quaternion.setFromUnitVectors(up,back.clone().normalize());mesh.scale.set(.055,length,.055);}
