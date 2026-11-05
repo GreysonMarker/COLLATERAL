@@ -9,8 +9,9 @@ export function createLockOn({combat,camera,player,button,dot,reticle,visible}){
  let id=null;
  function clear(){id=null;dot.hidden=true;button.setAttribute('aria-pressed','false');button.querySelector('b').textContent='LOCK';}
  function point(){const a=combat.actors.get(id);return a&&a.active?.()!==false?a.position().clone().add(new T.Vector3(0,(a.height?.()||2.2)*.6,0)):null;}
+ function lock(targetId){const actor=combat.actors.get(targetId);if(targetId==='player'||!actor||actor.active?.()===false){clear();return false;}id=targetId;button.setAttribute('aria-pressed','true');button.querySelector('b').textContent='LOCKED';return true;}
  function toggle(){if(id){clear();return;}id=selectLockTarget(combat.actors,camera,reticle(),player,visible);button.setAttribute('aria-pressed',String(!!id));button.querySelector('b').textContent=id?'LOCKED':'NO TARGET';}
  function update(){const p=point();if(!p){clear();return null;}return p;}
  function draw(){const p=point();if(!p){dot.hidden=true;return;}const behind=p.clone().applyMatrix4(camera.matrixWorldInverse).z>=0;const s=p.project(camera);dot.hidden=behind||Math.abs(s.x)>1||Math.abs(s.y)>1;if(!dot.hidden){if(distanceLabel){const meters=Math.round(player.distanceTo(combat.actors.get(id).position())),label=meters+' m';if(distanceLabel.textContent!==label)distanceLabel.textContent=label;distanceLabel.style.transform=s.x>.8?'translateX(calc(-100% - 22px))':'';}dot.style.left=(s.x+1)*50+'%';dot.style.top=(1-s.y)*50+'%';}}
- return {toggle,clear,point,update,draw,get id(){return id;}};
+ return {lock,toggle,clear,point,update,draw,get id(){return id;}};
 }
