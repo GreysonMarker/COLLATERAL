@@ -1,3 +1,5 @@
+import {isTitan} from './titan-powers.js';
+import {createTitanBeam} from './titan-beam.js';
 import {desktopVisuals} from './visual-polish.js';
 import {createHeatBudget} from './health.js';
 import {createHeatFX,heatContact} from './heat-fx.js';
@@ -12,7 +14,7 @@ export function heatReticleAim(camera,origin,reticle=HEAT_RETICLE){
  return {target,direction:target.clone().sub(origin).normalize()};
 }
 export function createHeatVision(scene,{camera,hero,destruction,cityLife,groundHeight,collisionWorld=null,combat=null,actorId='player',targetPoint=()=>null,inCombat=()=>true}){
- const reticle=HEAT_RETICLE.clone();
+ const reticle=HEAT_RETICLE.clone();let titanBeam=null;const titan=()=>isTitan(hero.character);const titanFX=()=>titanBeam??=createTitanBeam(scene,{hero,combat,actorId,destruction,cityLife,groundHeight,aimed});
  const detailed=desktopVisuals();
  const effects=createHeatFX(scene,camera);
  const root=new T.Group();root.visible=false;scene.add(root);const geo=new T.CylinderGeometry(1,1,1,detailed?20:7),up=new T.Vector3(0,1,0),beams=[];
@@ -22,8 +24,8 @@ export function createHeatVision(scene,{camera,hero,destruction,cityLife,groundH
  const budget=createHeatBudget();let tick=0;
  let held=false,clock=0,visualTime=0;const stats={range:HEAT_RANGE,cuts:0,npcPiercings:0,ticks:0};
  function aimed(origin){const target=targetPoint();return target?{target,direction:target.clone().sub(origin).normalize()}:heatReticleAim(camera,origin,reticle);}
- function stop(){held=false;root.visible=false;clock=0;}
- function update(dt,allowed=true){visualTime+=dt;const limited=inCombat(),used=budget.update(dt,held&&allowed&&limited),fired=limited?used:(held&&allowed&&budget.cooldown===0?dt:0);stats.charge=budget.charge;stats.cooldown=budget.cooldown;root.visible=fired>0;if(!root.visible){stats.contact=false;clock=0;effects.update(dt,false);stats.particles=effects.particles;return;}
+ function stop(){titanBeam?.stop();held=false;root.visible=false;clock=0;}
+ function update(dt,allowed=true){if(titan()){root.visible=false;effects.update(dt,false);const beam=titanFX();beam.held=held;beam.update(dt,allowed);return;}titanBeam?.stop();visualTime+=dt;const limited=inCombat(),used=budget.update(dt,held&&allowed&&limited),fired=limited?used:(held&&allowed&&budget.cooldown===0?dt:0);stats.charge=budget.charge;stats.cooldown=budget.cooldown;root.visible=fired>0;if(!root.visible){stats.contact=false;clock=0;effects.update(dt,false);stats.particles=effects.particles;return;}
   const origins=hero.eyePositions(),center=origins[0].clone().add(origins[1]).multiplyScalar(.5),dir=aimed(center).direction;let reach=HEAT_RANGE;
   // A beam stops at terrain rather than drilling a road trench or cutting through the earth.
   let groundStep=0;for(let d=0;d<=HEAT_RANGE;d=Math.min(HEAT_RANGE,d+3)){const p=center.clone().addScaledVector(dir,d);if(p.y<=groundHeight(p.x,p.z)){let lo=groundStep,hi=d;for(let i=0;i<8;i++){const mid=(lo+hi)/2,q=center.clone().addScaledVector(dir,mid);if(q.y<=groundHeight(q.x,q.z))hi=mid;else lo=mid;}reach=lo;break;}if(d===HEAT_RANGE)break;groundStep=d;}
@@ -41,5 +43,5 @@ export function createHeatVision(scene,{camera,hero,destruction,cityLife,groundH
   let freshContact=null;clock-=dt;if(clock<=0){clock=.10;freshContact=heatContact(collisionWorld,center,dir,reach);if(!freshContact&&reach<HEAT_RANGE-.1)freshContact=end.clone();stats.cuts+=destruction.heat(center,dir,reach);stats.cuts+=cityLife.heat(center,dir,reach);const passes=cityLife.heatPasses||[];effects.pierce(passes,dir);stats.npcPiercings+=passes.length;stats.contact=!!freshContact;if(freshContact)cityLife.frighten?.(freshContact,90);}
   effects.update(dt,true,origins,end,freshContact);stats.particles=effects.particles;
  }
- return {update,stop,stats,reset(){stop();budget.reset();tick=0;},setForwardFlight(forward,dt){reticle.y=T.MathUtils.damp(reticle.y,forward?.008:HEAT_RETICLE.y,12,dt);},get reticleTop(){return (1-reticle.y)*50;},set held(value){if(value&&!held)clock=0;held=value;if(!value)stop();},get active(){return held&&budget.cooldown===0;},aimAt(origin){return aimed(origin);},aim(){const center=hero.root.position.clone().add(new T.Vector3(0,2.1,0));return aimed(center).direction;}};
+ return {update,stop,get stats(){return titan()?titanFX().stats:stats;},get windup(){return titan()?titanFX().age:0;},reset(){stop();budget.reset();titanBeam?.reset();tick=0;},setForwardFlight(forward,dt){reticle.y=T.MathUtils.damp(reticle.y,forward?.008:HEAT_RETICLE.y,12,dt);},get reticleTop(){return (1-reticle.y)*50;},set held(value){if(value&&!held)clock=0;held=value;if(!value)stop();},get active(){return titan()?titanFX().active:held&&budget.cooldown===0;},aimAt(origin){return aimed(origin);},aim(){if(titan()&&titanFX().active)return titanFX().direction;const center=hero.root.position.clone().add(new T.Vector3(0,2.1,0));return aimed(center).direction;}};
 }

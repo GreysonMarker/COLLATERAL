@@ -330,30 +330,31 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
  }
  // Heat now removes the same pre-divided cells as a Normal punch. No repeated
  // polygon subtraction, surface triangulation, or extra convex collision pieces.
- function heat(origin,direction,reach){
+ function heat(origin,direction,reach,radius=HEAT_DAMAGE_RADIUS){
+  radius=Number.isFinite(radius)?Math.max(HEAT_DAMAGE_RADIUS,Math.min(10.5,radius)):HEAT_DAMAGE_RADIUS;
   if(reach<=0||direction.lengthSq()<.001)return 0;
   const dir=direction.clone().normalize(),ray=new T.Ray(origin,dir),end=origin.clone().addScaledVector(dir,reach),seen=new Set(),targets=[];
-  const area=new T.Box3().setFromPoints([origin,end]);
+  const area=new T.Box3().setFromPoints([origin,end]).expandByScalar(radius);
   for(let gx=Math.floor(area.min.x/56);gx<=Math.floor(area.max.x/56);gx++)for(let gz=Math.floor(area.min.z/56);gz<=Math.floor(area.max.z/56);gz++)for(const solid of world.grid.get(gx+','+gz)||[]){
    const b=solid.building;if(!b||b.falling||seen.has(b))continue;seen.add(b);
-   const box=b.bounds||b.solids.reduce((box,s)=>box.union(bounds(s)),new T.Box3()),at=box.containsPoint(origin)?origin:ray.intersectBox(box,new T.Vector3());
+   const box=b.bounds||b.solids.reduce((box,s)=>box.union(bounds(s)),new T.Box3()),at=box.containsPoint(origin)?origin:ray.intersectBox(box.clone().expandByScalar(radius),new T.Vector3());
    if(!at||at.distanceToSquared(origin)>reach*reach)continue;
    // Radius-sized holes make sub-pixel repeat cuts unnecessary. Keep cached
    // aim per building, so an already pierced foreground cannot starve the next.
-   if(b.lastHeat&&b.lastHeat.o.distanceToSquared(origin)<.25&&b.lastHeat.end.distanceToSquared(end)<.25)continue;
+   if(b.lastHeat&&b.lastHeat.radius===radius&&b.lastHeat.o.distanceToSquared(origin)<.25&&b.lastHeat.end.distanceToSquared(end)<.25)continue;
    targets.push({b,at:at.clone(),distance:at.distanceToSquared(origin)});
   }
   targets.sort((a,b)=>a.distance-b.distance);let hits=0,processed=0;
   for(const {b,at} of targets){
-   if(processed>=1)break;impactVisuals.cut(b,origin,dir,HEAT_DAMAGE_RADIUS+CELL*.65,reach,0,0);const wasActive=b.active;if(!activate(b)){if(!urgent.has(b)){const o=origin.clone(),d=direction.clone();defer(b,()=>heat(o,d,reach));}continue;}b.lastHeat={o:origin.clone(),end:end.clone()};let removed=0;
-   const limit=(HEAT_DAMAGE_RADIUS+CELL*.65)**2;
+   if(processed>=1)break;impactVisuals.cut(b,origin,dir,radius+CELL*.65,reach,0,0);const wasActive=b.active;if(!activate(b)){if(!urgent.has(b)){const o=origin.clone(),d=direction.clone();defer(b,()=>heat(o,d,reach,radius));}continue;}b.lastHeat={o:origin.clone(),end:end.clone(),radius};let removed=0;
+   const limit=(radius+CELL*.65)**2;
    for(const c of b.cells.values()){if(c.removed)continue;const dx=c.center.x-origin.x,dy=c.center.y-origin.y,dz=c.center.z-origin.z,along=dx*dir.x+dy*dir.y+dz*dir.z;
     if(along<0||along>reach||dx*dx+dy*dy+dz*dz-along*along>limit)continue;remove(b,c);removed++;
    }
    if(removed||!wasActive)processed++;
-   if(removed){hits++;burst(at,dir.clone().multiplyScalar(3),12,Math.min(8,HEAT_DAMAGE_RADIUS));assessSupports(b,new T.Vector3());}
+   if(removed){hits++;burst(at,dir.clone().multiplyScalar(3),12,Math.min(8,radius));assessSupports(b,new T.Vector3());}
   }
-  stats.heatBuildingsProcessed=processed;stats.heatRadius=HEAT_DAMAGE_RADIUS;
+  stats.heatBuildingsProcessed=processed;stats.heatRadius=radius;
   if(hits){stats.heatCuts=(stats.heatCuts||0)+hits;}return hits;
  }
  // Falling meshes retain their tumble/dust lifecycle, but cannot obstruct movement.
