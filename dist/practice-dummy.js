@@ -22,7 +22,7 @@ export function createPracticeDummy(scene,combat,ground,{world,material=c=>new T
  const health=createHealth(),brain=createCombatAI(random);let fighting=false,flying=false,launched=false,airTime=0,heading=0,pitch=0,fast=false,moving=false,decision=null,laserIntent=false,stuck=0,lastPosition=position.clone();
  const leap=createTitanLeap();let impactHold=0;const aimPoint=new T.Vector3(),aimDirection=new T.Vector3(0,0,-1);
  const punches=arena?createPunches(scene,{...arena,buildings:arena.buildings||[],groundHeight:ground,hero,combat,destruction,groundDamage,camera:null,actorId:'practice-dummy',getVelocity:()=>velocity,targetPoint:()=>aimPoint.clone()}):null;
- const heat=arena?createHeatVision(scene,{camera:new T.PerspectiveCamera(),hero,destruction,cityLife:arena.cityLife,groundHeight:ground,collisionWorld:world,combat,actorId:'practice-dummy',targetPoint:()=>aimPoint.clone()}):null;
+ const heat=arena?createHeatVision(scene,{camera:new T.PerspectiveCamera(),hero,destruction,cityLife:arena.cityLife,groundHeight:ground,groundDamage,collisionWorld:world,combat,actorId:'practice-dummy',targetPoint:()=>aimPoint.clone()}):null;
  function cancelAttack(){punches?.state.cancel();heat?.stop();laserIntent=false;}
  function think(dt){
   const enemy=getOpponent();const free=fighting&&enemy&&enemy.alive&&!held&&impactHold<=0&&!health.dead&&!hero.titanLocked&&!launched&&!recovery.locked&&defense.stun<=0;

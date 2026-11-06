@@ -342,7 +342,7 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
  // Heat now removes the same pre-divided cells as a Normal punch. No repeated
  // polygon subtraction, surface triangulation, or extra convex collision pieces.
  function heat(origin,direction,reach,radius=HEAT_DAMAGE_RADIUS){
-  radius=Number.isFinite(radius)?Math.max(HEAT_DAMAGE_RADIUS,Math.min(10.5,radius)):HEAT_DAMAGE_RADIUS;
+  radius=Number.isFinite(radius)?Math.max(HEAT_DAMAGE_RADIUS,Math.min(14.7,radius)):HEAT_DAMAGE_RADIUS;
   if(reach<=0||direction.lengthSq()<.001)return 0;
   const dir=direction.clone().normalize(),ray=new T.Ray(origin,dir),end=origin.clone().addScaledVector(dir,reach),seen=new Set(),targets=[];
   const area=new T.Box3().setFromPoints([origin,end]).expandByScalar(radius);
@@ -363,7 +363,7 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
     if(along<0||along>reach||dx*dx+dy*dy+dz*dz-along*along>limit)continue;remove(b,c);removed++;
    }
    if(removed||!wasActive)processed++;
-   if(removed){hits++;burst(at,dir.clone().multiplyScalar(3),12,Math.min(8,radius));assessSupports(b,new T.Vector3());}
+   if(removed){hits++;burst(at,dir.clone().multiplyScalar(radius>1?80:3),radius>1?36:12,Math.min(14.7,radius));assessSupports(b,new T.Vector3());}
   }
   stats.heatBuildingsProcessed=processed;stats.heatRadius=radius;
   if(hits){stats.heatCuts=(stats.heatCuts||0)+hits;}return hits;
