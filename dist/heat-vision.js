@@ -1,4 +1,4 @@
-import {isTitan} from './titan-powers.js';
+import {isTitan,TITAN_POWER} from './titan-powers.js';
 import {createTitanBeam} from './titan-beam.js';
 import {desktopVisuals} from './visual-polish.js';
 import {createHeatBudget} from './health.js';
@@ -8,6 +8,16 @@ import {PUNCHES} from './punches.js';
 export const HEAT_RANGE=PUNCHES.serious.reach*7/20;
 // Fixed screen aim point sits just above the head in the normal upright camera view.
 export const HEAT_RETICLE=new T.Vector2(0,.27);
+export const TITAN_HEAT_RETICLE=new T.Vector2(0,.38);
+// Use the far side of the hand-centred range sphere. The near side can sit
+// between a giant's distant camera and his hand, reversing the beam.
+export function titanReticleAim(camera,origin,target=null){
+ const caster=new T.Raycaster();caster.setFromCamera(TITAN_HEAT_RETICLE,camera);const ray=caster.ray;
+ if(target){const delta=target.clone().sub(origin);if(delta.lengthSq()>1e-8&&delta.dot(ray.direction)>.001)return {target:target.clone(),direction:delta.normalize()};}
+ const offset=origin.clone().sub(ray.origin),depth=offset.dot(ray.direction),perpendicularSq=Math.max(0,offset.lengthSq()-depth*depth),range=TITAN_POWER.beamRange;
+ const distance=Math.max(0,depth)+Math.sqrt(Math.max(range*range-perpendicularSq,range*range*.01));
+ const ahead=ray.at(distance,new T.Vector3());return {target:ahead,direction:ahead.clone().sub(origin).normalize()};
+}
 export function heatReticleAim(camera,origin,reticle=HEAT_RETICLE){
  const ray=new T.Raycaster();ray.setFromCamera(reticle,camera);
  const target=ray.ray.intersectSphere(new T.Sphere(origin,HEAT_RANGE),new T.Vector3())||ray.ray.at(HEAT_RANGE,new T.Vector3());
@@ -23,7 +33,7 @@ export function createHeatVision(scene,{camera,hero,destruction,cityLife,groundH
  const reflectedBeams=[0,1].map(()=>{const mesh=new T.Mesh(geo,new T.MeshBasicMaterial({color:'#fff8b0',toneMapped:false}));mesh.visible=false;root.add(mesh);return mesh;});
  const budget=createHeatBudget();let tick=0;
  let held=false,clock=0,visualTime=0;const stats={range:HEAT_RANGE,cuts:0,npcPiercings:0,ticks:0};
- function aimed(origin){const target=targetPoint();return target?{target,direction:target.clone().sub(origin).normalize()}:heatReticleAim(camera,origin,reticle);}
+ function aimed(origin){const target=targetPoint();if(titan()&&actorId==='player')return titanReticleAim(camera,origin,target);return target?{target,direction:target.clone().sub(origin).normalize()}:heatReticleAim(camera,origin,reticle);}
  function stop(){titanBeam?.stop();held=false;root.visible=false;clock=0;}
  function update(dt,allowed=true){if(titan()){root.visible=false;effects.update(dt,false);const beam=titanFX();beam.held=held;beam.update(dt,allowed);return;}titanBeam?.stop();visualTime+=dt;const limited=inCombat(),used=budget.update(dt,held&&allowed&&limited),fired=limited?used:(held&&allowed&&budget.cooldown===0?dt:0);stats.charge=budget.charge;stats.cooldown=budget.cooldown;root.visible=fired>0;if(!root.visible){stats.contact=false;clock=0;effects.update(dt,false);stats.particles=effects.particles;return;}
   const origins=hero.eyePositions(),center=origins[0].clone().add(origins[1]).multiplyScalar(.5),dir=aimed(center).direction;let reach=HEAT_RANGE;
@@ -43,5 +53,5 @@ export function createHeatVision(scene,{camera,hero,destruction,cityLife,groundH
   let freshContact=null;clock-=dt;if(clock<=0){clock=.10;freshContact=heatContact(collisionWorld,center,dir,reach);if(!freshContact&&reach<HEAT_RANGE-.1)freshContact=end.clone();stats.cuts+=destruction.heat(center,dir,reach);stats.cuts+=cityLife.heat(center,dir,reach);const passes=cityLife.heatPasses||[];effects.pierce(passes,dir);stats.npcPiercings+=passes.length;stats.contact=!!freshContact;if(freshContact)cityLife.frighten?.(freshContact,90);}
   effects.update(dt,true,origins,end,freshContact);stats.particles=effects.particles;
  }
- return {update,stop,get stats(){return titan()?titanFX().stats:stats;},get windup(){return titan()?titanFX().age:0;},reset(){stop();budget.reset();titanBeam?.reset();tick=0;},setForwardFlight(forward,dt){reticle.y=T.MathUtils.damp(reticle.y,forward?.008:HEAT_RETICLE.y,12,dt);},get reticleTop(){return (1-reticle.y)*50;},set held(value){if(value&&!held)clock=0;held=value;if(!value)stop();},get active(){return titan()?titanFX().active:held&&budget.cooldown===0;},aimAt(origin){return aimed(origin);},aim(){if(titan()&&titanFX().active)return titanFX().direction;const center=hero.root.position.clone().add(new T.Vector3(0,2.1,0));return aimed(center).direction;}};
+ return {update,stop,get stats(){return titan()?titanFX().stats:stats;},get windup(){return titan()?titanFX().age:0;},reset(){stop();budget.reset();titanBeam?.reset();tick=0;},setForwardFlight(forward,dt){reticle.y=titan()?TITAN_HEAT_RETICLE.y:T.MathUtils.damp(reticle.y,forward?.008:HEAT_RETICLE.y,12,dt);},get reticleTop(){return (1-(titan()?TITAN_HEAT_RETICLE.y:reticle.y))*50;},set held(value){if(value&&!held)clock=0;held=value;if(!value)stop();},get active(){return titan()?titanFX().active:held&&budget.cooldown===0;},aimAt(origin){return aimed(origin);},aim(){if(titan())return titanFX().active&&titanFX().age>0?titanFX().direction:aimed(hero.grabHand()).direction;const center=hero.root.position.clone().add(new T.Vector3(0,2.1,0));return aimed(center).direction;}};
 }
