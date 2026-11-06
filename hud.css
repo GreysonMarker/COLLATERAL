@@ -65,3 +65,5 @@ body[data-device=computer] #jump svg{display:none}
 body[data-device=computer] kbd{display:block;flex-shrink:0;padding:3px 8px;min-width:25px;border:1px solid #d6e9fa65;border-bottom-width:2px;border-radius:4px;background:#ffffff13;font:700 11px system-ui;line-height:1.1;color:inherit;letter-spacing:.5px}
 body[data-device=computer] #keyboard-guide{bottom:8px;font-size:10px;padding:5px 10px;max-width:calc(100% - 32px)}
 body[data-device=computer] #combat-controls button:focus-visible,body[data-device=computer] #defense-controls button:focus-visible{outline:2px solid #ffe3a0}
+
+#punch-quick[hidden],#punch-serious[hidden]{display:none!important}
