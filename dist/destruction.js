@@ -34,7 +34,7 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
  const supportMaterial=new T.MeshStandardMaterial({color:'#555c65',roughness:.72,metalness:.45});
  const active=new Set(),dirty=new Set(),falling=[],debris=[],dust=[],waves=[],pending=[],rings=[],pressure=[];
  const stats={damagedBuildings:0,removedSections:0,collapses:0,topShears:0,topBlasts:0,secondaryImpacts:0,fractures:0,structuralBodies:0,debris:0};
- let maxDebris=mobile?1536:2048,maxDust=mobile?128:192;let clock=0;
+ const maxDebris=mobile?1536:2048,maxDust=mobile?128:192,spawnLimit=mobile?192:320;let debrisCursor=0,dustCursor=0,spawned=0,clouds=0,clock=0;stats.debrisLimit=maxDebris;stats.dustLimit=maxDust;stats.cosmeticSkipped=0;
  const rubbleMaterial=new T.MeshStandardMaterial({color:0xffffff,roughness:.95,flatShading:true});
  finishSurface(rubbleMaterial,'concrete');
  let debrisMesh=new T.InstancedMesh(new T.IcosahedronGeometry(.62,0),rubbleMaterial,maxDebris);debrisMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);debrisMesh.frustumCulled=false;debrisMesh.castShadow=false;debrisMesh.receiveShadow=true;debrisMesh.count=0;scene.add(debrisMesh);
@@ -48,11 +48,22 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
 
  const spinStep=new T.Quaternion();
  const dummy=new T.Object3D(),fragmentColors=['#a5a29a','#777a7b','#c0bcb2','#6696aa','#a0c8ce'].map(c=>new T.Color(c));
- function spawn(point,velocity,size=1,glass=false){if(debris.length>=maxDebris){maxDebris*=2;const old=debrisMesh;debrisMesh=new T.InstancedMesh(old.geometry,old.material,maxDebris);debrisMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);debrisMesh.frustumCulled=false;debrisMesh.receiveShadow=true;scene.remove(old);old.dispose();scene.add(debrisMesh);}const axis=new T.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize();debris.push({p:point.clone(),v:velocity.clone(),q:new T.Quaternion().setFromAxisAngle(axis,Math.random()*6.28),axis,spin:2+Math.random()*7,size:new T.Vector3(size*(.6+Math.random()*.8),glass?.035+size*.045:size*(.3+Math.random()*.5),size*(.4+Math.random()*.9)),age:0,rest:false,glass,color:glass?fragmentColors[3+Math.floor(Math.random()*2)]:fragmentColors[Math.floor(Math.random()*3)]});const piece=debris[debris.length-1];dummy.position.copy(piece.p);dummy.quaternion.copy(piece.q);dummy.scale.copy(piece.size);dummy.updateMatrix();debrisMesh.setMatrixAt(debris.length-1,dummy.matrix);debrisMesh.setColorAt(debris.length-1,piece.color);debrisMesh.count=debris.length;debrisMesh.instanceMatrix.needsUpdate=true;debrisMesh.instanceColor.needsUpdate=true;stats.debris=debris.length;}
- function cloud(p,scale=1,velocity=null,lifetime=null,opacity=1){if(dust.length>=maxDust){maxDust*=2;const old=dustMesh;dustAlpha=new T.InstancedBufferAttribute(new Float32Array(maxDust),1);dustAlpha.setUsage(T.DynamicDrawUsage);dustGeometry.setAttribute("particleAlpha",dustAlpha);dustMesh=new T.InstancedMesh(dustGeometry,dustMat,maxDust);dustMesh.frustumCulled=false;scene.remove(old);old.dispose();scene.add(dustMesh);}dust.push({p:p.clone(),v:velocity?velocity.clone().multiplyScalar(.07):new T.Vector3(),opacity,scale:Math.min(lifetime?126:14,Math.max(1,scale)),age:0,life:lifetime??(1.6+Math.random()*.9),rotation:Math.random()*6.28});}
- function burst(point,velocity,count=65,spread=2){audio?.destruction(point);for(let i=0;i<count;i++){const offset=new T.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(spread),v=offset.clone().normalize().multiplyScalar(4+Math.random()*13).addScaledVector(velocity,.10+Math.random()*.16);v.y+=Math.random()*6;spawn(point.clone().add(offset),v,.3+Math.random()**1.4*1.8,i%7===0);}for(let i=0;i<2;i++)cloud(point.clone().add(new T.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(spread)),spread*.8+2,velocity);}
+ function spawn(point,velocity,size=1,glass=false){
+  if(spawned>=spawnLimit){stats.cosmeticSkipped++;return null;}spawned++;
+  const index=debris.length<maxDebris?debris.length:debrisCursor++%maxDebris;
+  let piece=debris[index];if(!piece)piece=debris[index]={p:new T.Vector3(),v:new T.Vector3(),q:new T.Quaternion(),axis:new T.Vector3(),size:new T.Vector3()};
+  piece.p.copy(point);piece.v.copy(velocity);piece.axis.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize();piece.q.setFromAxisAngle(piece.axis,Math.random()*6.28);piece.spin=2+Math.random()*7;
+  piece.size.set(size*(.6+Math.random()*.8),glass?.035+size*.045:size*(.3+Math.random()*.5),size*(.4+Math.random()*.9));piece.age=0;piece.rest=false;piece.glass=glass;piece.color=glass?fragmentColors[3+Math.floor(Math.random()*2)]:fragmentColors[Math.floor(Math.random()*3)];
+  dummy.position.copy(piece.p);dummy.quaternion.copy(piece.q);dummy.scale.copy(piece.size);dummy.updateMatrix();debrisMesh.setMatrixAt(index,dummy.matrix);debrisMesh.setColorAt(index,piece.color);debrisMesh.count=debris.length;debrisMesh.instanceMatrix.needsUpdate=true;debrisMesh.instanceColor.needsUpdate=true;stats.debris=debris.length;return piece;
+ }
+ function cloud(p,scale=1,velocity=null,lifetime=null,opacity=1){
+  if(clouds>=24){stats.cosmeticSkipped++;return;}clouds++;const index=dust.length<maxDust?dust.length:dustCursor++%maxDust;
+  let d=dust[index];if(!d)d=dust[index]={p:new T.Vector3(),v:new T.Vector3()};d.p.copy(p);if(velocity)d.v.copy(velocity).multiplyScalar(.07);else d.v.set(0,0,0);
+  d.opacity=opacity;d.scale=Math.min(lifetime?126:14,Math.max(1,scale));d.age=0;d.life=lifetime??(1.6+Math.random()*.9);d.rotation=Math.random()*6.28;
+ }
+ function burst(point,velocity,count=65,spread=2){audio?.destruction(point);const allowed=Math.min(count,spawnLimit-spawned);stats.cosmeticSkipped+=count-allowed;for(let i=0;i<allowed;i++){const offset=new T.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(spread),v=offset.clone().normalize().multiplyScalar(4+Math.random()*13).addScaledVector(velocity,.10+Math.random()*.16);v.y+=Math.random()*6;spawn(point.clone().add(offset),v,.3+Math.random()**1.4*1.8,i%7===0);}for(let i=0;i<2;i++)cloud(point.clone().add(new T.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(spread)),spread*.8+2,velocity);}
  function roadBurst(point,direction,radius){
-  for(let i=0;i<8;i++){const angle=i*2.399,offset=new T.Vector3(Math.cos(angle),0,Math.sin(angle)).multiplyScalar(radius*(.18+Math.random()*.50)),p=point.clone().add(offset);p.y=world.ground(p.x,p.z)+.8;const v=direction.clone().multiplyScalar(18+Math.random()*24);v.y=15+Math.random()*18;spawn(p,v,2+Math.random()*2,false);const piece=debris[debris.length-1];piece.size.set(2+Math.random()*4,.35+Math.random()*.85,1.5+Math.random()*3);piece.color=new T.Color(i%3===0?'#aaa396':'#414958');}
+  for(let i=0;i<8;i++){const angle=i*2.399,offset=new T.Vector3(Math.cos(angle),0,Math.sin(angle)).multiplyScalar(radius*(.18+Math.random()*.50)),p=point.clone().add(offset);p.y=world.ground(p.x,p.z)+.8;const v=direction.clone().multiplyScalar(18+Math.random()*24);v.y=15+Math.random()*18;const piece=spawn(p,v,2+Math.random()*2,false);if(!piece)continue;piece.size.set(2+Math.random()*4,.35+Math.random()*.85,1.5+Math.random()*3);piece.color=new T.Color(i%3===0?'#aaa396':'#414958');}
  }
  const prepared=new Map(),urgent=new Map(),visualJobs=[];
  function* prepare(b){
@@ -111,7 +122,7 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
  function prepareNearby(dt,position,velocity,buildings){
   preparationClock+=dt;
   if(preparationClock>.25){preparationClock=0;const speed=velocity.length(),dx=speed>1?velocity.x/speed:0,dz=speed>1?velocity.z/speed:0;
-   preparationTargets=buildings.filter(b=>!b.active).map(b=>{const x=b.x-position.x,z=b.z-position.z,d=x*x+z*z,a=x*dx+z*dz;return {b,d,score:d*(a>0?.35:1)};}).filter(t=>t.d<500*500).sort((a,b)=>a.score-b.score).slice(0,8).map(t=>t.b);
+   const nearest=[];for(const b of buildings){if(b.active)continue;const x=b.x-position.x,z=b.z-position.z,d=x*x+z*z;if(d>=500*500)continue;const score=d*(x*dx+z*dz>0?.35:1);if(nearest.length===8&&score>=nearest[7].score)continue;let i=0;while(i<nearest.length&&nearest[i].score<=score)i++;nearest.splice(i,0,{b,score});if(nearest.length>8)nearest.pop();}preparationTargets=nearest.map(t=>t.b);
    for(const [b] of prepared)if(!preparationTargets.includes(b)&&!urgent.has(b)){prepared.delete(b);world.removeFragments(b);clearRenderBands(b);b.cells=b.layers=b.supportLayers=null;b.pendingCuts=null;b.detaching=b.rebuilding=false;for(const r of b.ranges)delete r.originalPositions;}
   }
   const start=performance.now();let units=0;
@@ -291,7 +302,7 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
   const top=Math.max(...b.solids.map(s=>s.y2)),bottom=Math.min(...b.solids.map(s=>s.y1));
   const point=position.clone().add(contact.offset).addScaledVector(contact.normal,-.28);
   const profile=damageProfile(speed,closing/Math.max(.001,speed),powered,(point.y-bottom)/(top-bottom));if(!profile.destructive)return null;
-  if(profile.topOnly&&profile.severe&&!b.falling){impactVisuals.cut(b,new T.Vector3(b.x,bottom+(top-bottom)*.8,b.z),new T.Vector3(0,1,0),Math.max(...b.solids.map(s=>Math.hypot(s.x2-s.x1,s.z2-s.z1))),top-bottom,0,0);if(activate(b))topBlast(b,velocity,point.y);else{const v=velocity.clone(),y=point.y;contactCut(b,point,v,profile);defer(b,()=>{activate(b);topBlast(b,v,y);});burst(point,v,95,10);}velocity.multiplyScalar(profile.retention);return {pass:true};}
+  if(profile.topOnly&&profile.severe&&!b.falling){impactVisuals.cut(b,new T.Vector3(b.x,bottom+(top-bottom)*.8,b.z),new T.Vector3(0,1,0),Math.max(...b.solids.map(s=>Math.hypot(s.x2-s.x1,s.z2-s.z1))),top-bottom,0,0);if(activate(b))topBlast(b,velocity,point.y);else{const v=velocity.clone(),y=point.y;contactCut(b,point,v,profile);defer(b,()=>{activate(b);topBlast(b,v,y);});burst(point,velocity,95,10);}velocity.multiplyScalar(profile.retention);return {pass:true};}
   if(!strike(b,point,velocity,profile))return null;
   if(profile.fast>.5&&!profile.graze){if(rings.length<6){const ring=new T.Mesh(new T.RingGeometry(.82,1,40),pressureMaterial('#c8e4ef'));ring.position.copy(point);ring.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),velocity.clone().normalize());scene.add(ring);rings.push({mesh:ring,age:0,radius:profile.radius});}waves.push({b,p:point.clone(),v:velocity.clone(),profile:{...profile,severe:false,radius:profile.radius*1.45,depth:profile.depth*1.3},delay:.08});}
   // Direct breakthroughs retain momentum. A graze still uses the ordinary
@@ -361,6 +372,7 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
  world.setHeroSections([]);
  stats.heroColliders=0;
  function update(dt,player){
+  stats.spawnedLastFrame=spawned;spawned=clouds=0;
 
   clock+=dt;for(const b of active)if(b.collapseStart!=null&&impactVisuals.has(b)){const t=clock-b.collapseStart;impactVisuals.collapse(b,b.collapseLevel,-t-9*t*t);}
   const workStart=performance.now();let collapsesThisFrame=0;
@@ -408,7 +420,7 @@ export function createDestruction(scene,world,{concrete,roofmat,mobile=false,cam
   for(const f of falling)dispose(f.mesh);falling.length=0;world.setHeroSections([]);stats.heroColliders=0;
   for(const r of rings){r.mesh.material.dispose();dispose(r.mesh);}rings.length=0;
   for(const b of [...active])restore(b);
-  debris.length=dust.length=0;debrisMesh.count=dustMesh.count=0;
+  spawned=clouds=debrisCursor=dustCursor=0;debris.length=dust.length=0;debrisMesh.count=dustMesh.count=0;
   stats.activeBuildings=stats.visualSections=stats.debris=stats.dust=0;
  }
  return {prepareNearby,reset,hit,heat,update,stats,burst,shockwave,radialBlast,punch,punchFalling,roadBurst,plume:(p,size,v)=>cloud(p,Math.min(7,size*.06),v,1.4,.25)};
