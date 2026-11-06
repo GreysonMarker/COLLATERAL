@@ -100,11 +100,11 @@ if(p.y+r<s.y1||p.y-r>s.y2||p.x+r<s.x1||p.x-r>s.x2||p.z+r<s.z1||p.z-r>s.z2)return
  }
  moveAxis(position,axis,amount,offsets){this.lastContact=null;if(!amount)return false;const start=position[axis];position[axis]+=amount;if(!this.bodyHit(position,offsets))return false;this.lastContact=this.contactAt(position,offsets,this.bodyRadius??.28);let lo=0,hi=1;for(let k=0;k<9;k++){const t=(lo+hi)/2;position[axis]=start+amount*t;if(this.bodyHit(position,offsets))hi=t;else lo=t}position[axis]=start+amount*lo;return true}
  floorAt(x,z,maxY,hero=false){let floor=this.ground(x,z);const origin=new T.Vector3(x,maxY+.002,z),down=new T.Vector3(0,-1,0);for(const s of this.nearby(x,z,.05,null,hero)){if(hero&&this.ignoresBodySolid(s))continue;if(s.kind==='vehicle'&&(Math.abs((x-s.x)*s.dz-(z-s.z)*s.dx)>s.w||Math.abs((x-s.x)*s.dx+(z-s.z)*s.dz)>s.l))continue;if(s.kind==='branch'||x<s.x1||x>s.x2||z<s.z1||z>s.z2)continue;if(s.kind==='convex'){let lo=0,hi=Infinity;for(const p of s.planes){const d=p.distanceToPoint(origin),v=p.normal.dot(down);if(Math.abs(v)<1e-8){if(d>0){hi=-1;break}}else if(v<0)lo=Math.max(lo,-d/v);else hi=Math.min(hi,-d/v)}if(lo<=hi&&lo>=0&&lo<Infinity)floor=Math.max(floor,origin.y-lo)}else if(s.y2<=maxY+.003)floor=Math.max(floor,s.y2)}return floor}
- cameraFraction(start,end){
+ cameraFraction(start,end,radius=.16){
   const distance=start.distanceTo(end),steps=Math.max(1,Math.ceil(distance/.16)),point=this._cameraPoint??=new T.Vector3();
-  const candidates=this.nearbyBounds(Math.min(start.x,end.x)-.16,Math.min(start.z,end.z)-.16,Math.max(start.x,end.x)+.16,Math.max(start.z,end.z)+.16,Math.min(start.y,end.y)-.16,Math.max(start.y,end.y)+.16,false,this._cameraCandidates??=new Set());
+  const candidates=this.nearbyBounds(Math.min(start.x,end.x)-radius,Math.min(start.z,end.z)-radius,Math.max(start.x,end.x)+radius,Math.max(start.z,end.z)+radius,Math.min(start.y,end.y)-radius,Math.max(start.y,end.y)+radius,false,this._cameraCandidates??=new Set());
   if(!candidates.size)return 1;
-  for(let i=1;i<=steps;i++){point.lerpVectors(start,end,i/steps);for(const s of candidates)if(this.sphereSolid(point,.16,s))return Math.max(0,(i-1)/steps);}
+  for(let i=1;i<=steps;i++){point.lerpVectors(start,end,i/steps);for(const s of candidates)if(this.sphereSolid(point,radius,s))return Math.max(0,(i-1)/steps);}
   return 1;
  }
 }
