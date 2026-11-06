@@ -32,7 +32,7 @@ export function createPracticeDummy(scene,combat,ground,{world,material=c=>new T
   if(decision.seen){const region=decision.aimRegion||'chest';aimPoint.copy(decision.seen.aimPoints?.[region]||decision.seen.position.clone().add(new T.Vector3(0,(region==='head'?2.17:1.73)*(enemy.height||1),0))).addScaledVector(decision.seen.velocity,.16);aimDirection.copy(aimPoint).sub(position).sub(new T.Vector3(0,1.45*hero.character.height,0)).normalize();heading=Math.atan2(-aimDirection.x,-aimDirection.z);pitch=Math.atan2(-aimDirection.y,Math.hypot(aimDirection.x,aimDirection.z));}
   if(isTitan(hero.character)){
    flying=false;fast=false;moving=distance>100;const busy=!!punches?.state.current||heat?.active||leap.active;
-   defense.hold(false);if(!busy&&grounded&&decision.attack){punches?.state.press(decision.attack,aimDirection);}laserIntent=!!decision.laser&&!punches?.state.current&&!leap.active;
+   defense.hold(false);if(!busy&&grounded&&decision.attack){punches?.state.press('normal',aimDirection);}laserIntent=!!decision.laser&&!punches?.state.current&&!leap.active;
    if(!busy&&!laserIntent&&distance>260)leap.press(position,delta,grounded);
    if(!busy&&!laserIntent&&!leap.active){velocity.copy(delta).setY(0).normalize().multiplyScalar(moving?36:0);}else velocity.x=velocity.z=0;
    return;
