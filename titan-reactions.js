@@ -32,9 +32,13 @@ export function titanDirection(localDirection,face){
 export function titanResponse(attack,hit){
  const zone=TITAN_ZONES.find(z=>z.id===hit?.zone)||TITAN_ZONES.find(z=>z.id==='front-mid-chest');
  const kind=attack.kind,serious=kind==='serious',direct=!!hit?.direct;
- const special=serious&&direct&&((zone.type==='head'&&hit.distance<=15)||(zone.type==='core'&&hit.distance<=10));
- return {zone:zone.id,direction:hit?.direction??2,kind,special,duration:special?2.8:serious?1.35:kind==='quick'?.48:.72,
-  distance:special?(zone.type==='head'?14:10):0,worldDirection:attack.direction?.toArray()||[0,0,-1]};
+ const headStun=serious&&zone.type==='head';
+ const special=headStun||serious&&direct&&zone.type==='core'&&hit.distance<=10;
+ // Ordinary hero serious punches double Monolith's former 14/10 m displacement.
+ // Titan-on-titan strikes retain their previous displacement budget.
+ const multiplier=attack.titanStrike?1:2;
+ return {zone:zone.id,direction:hit?.direction??2,kind,special,headStun,duration:headStun?1.8:special?2.8:serious?1.35:kind==='quick'?.48:.72,
+  distance:special?(zone.type==='head'?14:10)*multiplier:0,worldDirection:attack.direction?.toArray()||[0,0,-1]};
 }
 // Contact timing, body delay and load vary with the struck anatomy. A shin
 // yields at the knee, an arm folds locally, while the collar transmits a stiff
@@ -89,7 +93,14 @@ export function sampleTitanReaction(state,age){
   const leg=limb(p.legs,s);leg[0]+=push*s*side*.10*settle;
   limb(p.legs,'knee'+s)[0]+=.10*settle;
  }
- if(state.special){p.lift=.9*pulse(t,0,.13,.34);p.rig=[push*.30*body,0,-x*.18*body];p.drop+=.10*settle;for(const s of [-1,1]){limb(p.legs,'knee'+s)[0]+=.35*settle;limb(p.arms,s)[0]-=.32*body;}}
+ if(state.headStun){
+  const guard=smooth((age-.12)/.28)*(1-smooth((age-1.35)/.45));
+  p.headGuard={side,weight:guard};p.lift=0;p.drop+=.035*body;
+  p.rig=[push*.09*body,0,-x*.07*body];
+  const step=pulse(t,.04,.24,.58),plant=pulse(t,.28,.51,.85);
+  limb(p.legs,side)[0]+=push*.42*step;limb(p.legs,'knee'+side)[0]+=.48*step;
+  limb(p.legs,-side)[0]-=push*.25*plant;limb(p.legs,'knee'+(-side))[0]+=.24*plant;
+ }else if(state.special){p.lift=.9*pulse(t,0,.13,.34);p.rig=[push*.30*body,0,-x*.18*body];p.drop+=.10*settle;for(const s of [-1,1]){limb(p.legs,'knee'+s)[0]+=.35*settle;limb(p.arms,s)[0]-=.32*body;}}
  return p;
 }
 export function createTitanReactions(){
@@ -98,7 +109,7 @@ export function createTitanReactions(){
  trigger(next){if(state?.special)return false;if(state&&age<.24&&next.kind==='heat')return false;if(state&&age<.16&&state.kind==='serious'&&next.kind!=='serious')return false;transition=lastPose;state={...next};age=0;return true;},
  sync(next){transition=null;state=next?{...next}:null;age=next?.age||0;motion.set(0,0,0);},
  update(dt){if(!state)return null;const prev=age;age=Math.min(state.duration,age+dt);
-  if(state.special){const d=new T.Vector3().fromArray(state.worldDirection).setY(0);if(d.lengthSq()<.001)d.set(0,0,state.zone.startsWith('front')?-1:1);d.normalize();motion.addScaledVector(d,state.distance*(smooth(age/.75)-smooth(prev/.75)));}
+  if(state.special){const d=new T.Vector3().fromArray(state.worldDirection).setY(0);if(d.lengthSq()<.001)d.set(0,0,state.zone.startsWith('front')?-1:1);d.normalize();motion.addScaledVector(d,state.distance*(smooth(age/(state.headStun ? .85 : .75))-smooth(prev/(state.headStun ? .85 : .75))));}
   let pose=sampleTitanReaction(state,age);
   if(transition&&age<.12&&pose){const w=smooth(age/.12),mix=(a,b)=>b.map((v,i)=>(a?.[i]||0)*(1-w)+v*w);
    for(const key of ['rig','waist','chest','neck'])pose[key]=mix(transition[key],pose[key]);
