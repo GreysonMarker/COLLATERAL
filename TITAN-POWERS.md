@@ -11,3 +11,6 @@ Monolith is tagged `combatClass: 'titan'`. The shared power controllers use that
 Validation: `node check-titan-powers.mjs` covers multi-rate leap endpoints, cooldown, aiming limits, kick selection, attack exclusivity, damage deduplication, delayed launch, beam budget, NPC flight exclusion, finite poses, and network metadata. Existing combat, health, AI, momentum, training, multiplayer, network, terrain, titan-reaction and sole-plant checks pass. Offscreen renders inspect actual game geometry for kick, punch and raised-hand poses. Full interactive gameplay/performance has not been verified on the user's devices.
 
 Known baseline test issues: `check-punches.mjs` normal-building-collapse assertion and `check-heat.mjs` imported heat-tunnel assertion fail identically on pre-change commit b63db16. These destruction fixtures were not changed to hide the failures.
+
+
+Impact timing and visuals are superseded by v19; see [IMPACT-FRAMES.md](IMPACT-FRAMES.md) for the 12 authored holds and sustained laser treatment.
