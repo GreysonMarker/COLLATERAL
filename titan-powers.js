@@ -1,6 +1,6 @@
 import * as T from './vendor/three.module.js';
 // Shared tuning for all titan-class character controllers and remote animation.
-export const TITAN_POWER={leapCooldown:10,leapRange:180,leapDuration:2.5,leapWindup:.55,leapHeight:38,windup:1.25,duration:2.6,cooldown:3.2,reach:337.5,width:26.25,spread:30/337.5,damage:200,impactHold:.16,beamWindup:1.2,beamRadius:10.5,beamRange:337.5,beamTurnRate:.32};
+export const TITAN_POWER={leapCooldown:10,leapRange:180,leapDuration:2.5,leapWindup:.55,leapHeight:38,windup:1.25,duration:2.6,cooldown:3.2,reach:337.5,width:26.25,spread:30/337.5,damage:200,beamWindup:1.2,beamRadius:10.5,beamRange:337.5,beamTurnRate:.32};
 export const isTitan=c=>typeof c==='string'?c==='monolith':c?.combatClass==='titan'||c?.id==='monolith';
 export function steerTitan(current,wanted,dt,rate){
  const target=wanted.clone().normalize();if(!target.lengthSq())return current;
