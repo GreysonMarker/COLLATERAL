@@ -20,9 +20,9 @@ for(const zone of TITAN_ZONES){
 }
 for(const zone of TITAN_ZONES){for(const distance of [9.99,10.01,14.99,15.01,100]){
  const r=titanResponse({kind:'serious'},{zone:zone.id,direction:2,distance,direct:true});
- assert.equal(r.special,zone.type==='head'&&distance<=15||zone.type==='core'&&distance<=10);
+ assert.equal(r.special,zone.type==='head'||zone.type==='core'&&distance<=10);
  assert.equal(titanResponse({kind:'normal'},{zone:zone.id,direction:2,distance:1,direct:true}).special,false);
- assert.equal(titanResponse({kind:'serious'},{zone:zone.id,direction:2,distance:1,direct:false}).special,false);
+ assert.equal(titanResponse({kind:'serious'},{zone:zone.id,direction:2,distance:1,direct:false}).special,zone.type==='head');
 }}
 const head=zones.find(z=>z.id==='front-head-0').point;
 const origin=head.clone().add(new T.Vector3(0,0,-12)),dir=new T.Vector3(0,0,1);
@@ -38,9 +38,9 @@ const state=last.titan;
 const snap={p:[0,0,0],v:[0,0,0],character:'monolith',active:true,pose:{},titanReaction:{...state,age:.2},health:900};
 assert.deepEqual(unpackMotion(packMotion(snap)).titanReaction,snap.titanReaction,'compact multiplayer transport preserves animation');
 const invalid=packMotion(snap);invalid[15]={...snap.titanReaction,direction:NaN};assert.equal(unpackMotion(invalid),null);
-const ctl=createTitanReactions();ctl.trigger(state);let distance=0;for(let i=0;i<300;i++){ctl.update(1/60);distance+=ctl.consumeMotion().length();}assert(Math.abs(distance-14)<1e-8);assert(!ctl.active);
+const ctl=createTitanReactions();ctl.trigger(state);let distance=0;for(let i=0;i<300;i++){ctl.update(1/60);distance+=ctl.consumeMotion().length();}assert(Math.abs(distance-28)<1e-8);assert(!ctl.active);
 ctl.trigger(state);ctl.update(.3);assert.equal(ctl.trigger({...state,kind:'normal',special:false}),false,'cannot interrupt fixed recovery');ctl.reset();
-for(const dt of [1/30,1/60,1/144]){ctl.trigger(state);let d=new T.Vector3();for(let t=0;t<3.5;t+=dt){ctl.update(dt);d.add(ctl.consumeMotion());}assert(Math.abs(d.length()-14)<1e-7);}
+for(const dt of [1/30,1/60,1/144]){ctl.trigger(state);let d=new T.Vector3();for(let t=0;t<3.5;t+=dt){ctl.update(dt);d.add(ctl.consumeMotion());}assert(Math.abs(d.length()-28)<1e-7);}
 const wire=decodeCombatAttack(encodeCombatAttack({kind:'serious',punch:true,origin,direction:dir,titanHit:contact},'self'),'other');assert(wire.origin.equals(origin));assert.deepEqual(wire.titanHit,contact);
 // Generic impacts cannot activate the ragdoll or make the giant tumble.
 hero.resetTitan();hero.impact({closing:300,impulse:new T.Vector3(200,100,0),point:head,normal:dir});

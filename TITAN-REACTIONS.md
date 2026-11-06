@@ -1,6 +1,6 @@
 # Monolith regional impact system
 
-Build: titan-reactions-v14.
+Build: titan-head-stagger-v18.
 
 The marked reference is partitioned into 53 full-surface regions: 28 front and 25 back. All visible geometry is eligible, including the unmarked space between anchors. Arm and leg anchors follow their joints; head anchors follow the head. The front includes three facial regions, paired collar/shoulder/upper-arm/forearm-hand/chest/rib/abdomen/waist/thigh/knee/shin-foot regions, central chest, waist and pelvis. The back substitutes scapula and lower-back regions, a continuous central spine, and central waist.
 
@@ -12,14 +12,14 @@ Visible Monolith meshes are raycast first, using the punch centerline. The neare
 
 ## Controlled exceptions
 
-Only a direct centerline hit with a Serious Punch can trigger scripted displacement. The distance is from strike origin to surface contact, in world meters:
+Serious head hits trigger a planted step and hand-to-head stun. Close, direct central chest/spine hits retain their heavier recovery. Ordinary hero serious-punch displacement against Monolith is doubled; ordinary victims and titan attackers retain their earlier knockback.
 
 | Contact | Maximum range | Displacement | Recovery |
 |---|---:|---:|---:|
-| Any front/back head region | 15 m | 14 m | 2.8 s |
-| Central chest or spine | 10 m | 10 m | 2.8 s |
+| Any front/back head region | Any confirmed head hit | 28 m | 1.8 s |
+| Central chest or spine (direct) | 10 m | 20 m | 2.8 s |
 
-The trajectory is horizontal along the incoming strike direction, eased over .75 seconds, with a small visual lift and heavy balancing pose. It is clamped by the arena boundary. No generic launch impulse, momentum multiplier, ragdoll, or tumbling is applied. Ordinary hits cannot interrupt or restart an active special recovery; damage still applies. Inputs cannot bypass the recovery by jumping or entering flight. Other heroes retain their current launch/recovery rules. Titan-vs-titan balance remains future work.
+The trajectory is horizontal along the incoming strike direction, eased over .85 seconds for the planted head stagger, or .75 seconds for the central-body recovery. Head hits never lift the feet or activate ragdoll; the appropriate hand follows the head with inverse kinematics. It is clamped by the arena boundary. No generic launch impulse, momentum multiplier, ragdoll, or tumbling is applied. Ordinary hits cannot interrupt or restart an active special recovery; damage still applies. Inputs cannot bypass the recovery by jumping or entering flight. Other heroes retain their current launch/recovery rules. Titan-vs-titan balance remains future work.
 
 ## Integration and verification
 
@@ -27,4 +27,4 @@ Player, training character and remote replicas share the same region resolver an
 
 Network combat events carry the surface contact; movement snapshots carry reaction timing as a top-level field, including through the compact peer codec. The room service accepts all three concept character IDs. Existing clients must refresh to receive new modules.
 
-Run `node check-titan-reactions.mjs` for region/direction coverage, real geometry targeting, range boundaries, single-hit behavior, 30/60/144 Hz fixed displacement, reaction interruption, wire/compact transport, ragdoll exclusion and sole placement. Related regressions cover combat, momentum, training characters, titan scenery immunity, movement, feet, grabs, rooms and network motion. A sampled directional head recoil was rendered from the real rig for inspection; live browser gameplay tuning remains a separate verification step.
+Run `node check-titan-reactions.mjs` for region/direction coverage, real geometry targeting, range boundaries, single-hit behavior, 30/60/144 Hz fixed displacement, reaction interruption, wire/compact transport, ragdoll exclusion and sole placement. Related regressions cover combat, momentum, training characters, titan scenery immunity, movement, feet, grabs, rooms and network motion. The hand-to-head stagger was rendered from the real rig for inspection; live browser gameplay tuning remains a separate verification step.

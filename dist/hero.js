@@ -356,6 +356,7 @@ for(const a of arms){a.elbow.rotation.y=T.MathUtils.damp(a.elbow.rotation.y,0,18
        apply(rig,pose.rig);apply(upperBody,pose.waist);apply(thorax,pose.chest);apply(neck,pose.neck);rig.position.y-=pose.drop;
        for(const a of arms){apply(a.shoulder,pose.arms[a.side]);apply(a.elbow,pose.arms['elbow'+a.side]);}
        for(const l of legs){apply(l.hip,pose.legs[l.side]);apply(l.knee,pose.legs['knee'+l.side]);l.ankle.rotation.x=-l.hip.rotation.x-l.knee.rotation.x;}
+       if(pose.headGuard){root.updateWorldMatrix(true,true);const {side,weight}=pose.headGuard,hand=head.localToWorld(new T.Vector3(side*.20,.03,.10)),pole=head.localToWorld(new T.Vector3(side*.7,-.35,.25));plantArm(arms.find(a=>a.side===side),hand,pole,weight,.006);}
       }
     }
     if(titan&&leapAge<0&&grounded&&!flying&&!held&&!guard&&!ragdoll.active&&(!groundRecovery||groundRecovery.phase==='none'))plantTitanSoles(groundY+titanLift);
@@ -366,5 +367,6 @@ for(const a of arms){a.elbow.rotation.y=T.MathUtils.damp(a.elbow.rotation.y,0,18
   return {root,update,get damageStage(){return battleDamage.stage;},
     grappleAnchor(mode='grab'){root.updateWorldMatrix(true,true);return mode==='tackle'?arms.find(a=>a.side===1).shoulder.localToWorld(new T.Vector3(0,.02,.20)):this.grabHand();},
     pinHeld(anchor,mode='grab'){root.updateWorldMatrix(true,true);const contact=mode==='tackle'?thorax.localToWorld(new T.Vector3(.08,.10,.22)):neck.localToWorld(new T.Vector3(0,-.04,.10));root.position.add(anchor.clone().sub(contact));root.updateWorldMatrix(true,true);},
+    combatAimPoints(){root.updateWorldMatrix(true,true);return {head:head.localToWorld(new T.Vector3(0,.05,0)),chest:thorax.localToWorld(new T.Vector3(0,.16,0))};},
     grabHand(){root.updateWorldMatrix(true,true);return arms.find(a=>a.side===1).elbow.localToWorld(new T.Vector3(0,-.36,.01));},setAppearance(id){titanReactions.reset();ragdoll.reset();return appearance.setAppearance(id);},titanHit:(o,d,s)=>titanZones.hit(o,d,s),titanZoneCenters:()=>titanZones.centers(),reactTitan:r=>titanReactions.trigger(r),get titanReaction(){return titanReactions.state;},get titanLocked(){return titanReactions.locked;},consumeTitanMotion:()=>titanReactions.consumeMotion(),resetTitan:()=>titanReactions.reset(),get character(){return appearance.style;},eyePositions(){root.updateMatrixWorld(true);return [-1,1].map(side=>head.localToWorld(new T.Vector3(side*.084,.066,.235)));},impact:hit=>{if(!isTitan(appearance.style))ragdoll.trigger(hit);},get collisionFeedback(){return ragdoll.feedback;},resetCollision(){ragdoll.reset();groundPoseBlend=0;},meshes:all,cape,orientation};
 }

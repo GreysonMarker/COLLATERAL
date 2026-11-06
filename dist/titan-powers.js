@@ -14,7 +14,7 @@ export function createTitanLeap(){
  return {get active(){return age>=0;},get cooldown(){return cooldown;},get age(){return age;},
  press(p,d,grounded){if(age>=0||cooldown>0||!grounded)return false;age=0;cooldown=TITAN_POWER.leapCooldown;start.copy(p);direction.copy(d).setY(0);if(direction.lengthSq()<.001)direction.set(0,0,1);direction.normalize();return true;},
  update(dt,p,v,ground,confine){cooldown=Math.max(0,cooldown-dt);if(age<0)return null;age+=dt;const t=T.MathUtils.clamp((age-TITAN_POWER.leapWindup)/TITAN_POWER.leapDuration,0,1),previous=p.clone();p.copy(start).addScaledVector(direction,TITAN_POWER.leapRange*t);p.y=ground(p.x,p.z)+4*TITAN_POWER.leapHeight*t*(1-t);v.copy(p).sub(previous).divideScalar(Math.max(dt,.00001));confine?.(p,v);const landed=t>=1;if(landed){age=-1;v.set(0,0,0);}return {grounded:t===0||landed,landed};},
- reset(){age=-1;cooldown=0;}};
+ cancel(){age=-1;},reset(){age=-1;cooldown=0;}};
 }
 export function titanAttackPose(age,type){
  const smooth=(a,b)=>T.MathUtils.smoothstep(age,a,b),wind=smooth(0,.85),drive=smooth(.85,TITAN_POWER.windup),recover=1-smooth(1.55,TITAN_POWER.duration);
