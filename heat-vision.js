@@ -23,8 +23,8 @@ export function heatReticleAim(camera,origin,reticle=HEAT_RETICLE){
  const target=ray.ray.intersectSphere(new T.Sphere(origin,HEAT_RANGE),new T.Vector3())||ray.ray.at(HEAT_RANGE,new T.Vector3());
  return {target,direction:target.clone().sub(origin).normalize()};
 }
-export function createHeatVision(scene,{camera,hero,destruction,cityLife,groundHeight,collisionWorld=null,combat=null,actorId='player',targetPoint=()=>null,inCombat=()=>true}){
- const reticle=HEAT_RETICLE.clone();let titanBeam=null;const titan=()=>isTitan(hero.character);const titanFX=()=>titanBeam??=createTitanBeam(scene,{hero,combat,actorId,destruction,cityLife,groundHeight,aimed,inCombat});
+export function createHeatVision(scene,{camera,hero,destruction,cityLife,groundHeight,groundDamage=null,collisionWorld=null,combat=null,actorId='player',targetPoint=()=>null,inCombat=()=>true}){
+ const reticle=HEAT_RETICLE.clone();let titanBeam=null;const titan=()=>isTitan(hero.character);const titanFX=()=>titanBeam??=createTitanBeam(scene,{hero,combat,actorId,destruction,cityLife,groundHeight,groundDamage,aimed,inCombat});
  const detailed=desktopVisuals();
  const effects=createHeatFX(scene,camera);
  const root=new T.Group();root.visible=false;scene.add(root);const geo=new T.CylinderGeometry(1,1,1,detailed?20:7),up=new T.Vector3(0,1,0),beams=[];
